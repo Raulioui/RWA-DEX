@@ -1,0 +1,23 @@
+{
+  "name": "rwa-dex",
+  "version": "1.0.0",
+  "description": "**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "mintTsla": "bash -c 'source .env && node ./functions/simulators/mintTslaSimulator.js'",
+    "mintIbta": "bash -c 'source .env && node ./functions/simulators/mintIbtaSimulator.js'",
+    "mint": "bash -c 'source .env && node  ./functions/simulators/mintTslaSimulator.js'",
+    "redeem": "bash -c 'source .env && node  ./functions/simulators/alpacaRedeemSimulator.js'",
+    "uploadSecrets": "bash -c 'source .env && node ./functions/uploadSecrets.js'"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@chainlink/contracts-ccip": "^1.5.0",
+    "@chainlink/functions-toolkit": "^0.3.2"
+  }
+}
