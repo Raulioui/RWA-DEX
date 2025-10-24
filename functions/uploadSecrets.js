@@ -1,3 +1,4 @@
+require('dotenv').config();
 const {
     SecretsManager,
 } = require("@chainlink/functions-toolkit")
@@ -11,7 +12,7 @@ const uploadSecrets = async () => {
         "https://01.functions-gateway.testnet.chain.link/",
         "https://02.functions-gateway.testnet.chain.link/",
     ]
-
+console.log(process.env.PRIVATE_KEY)
     // Initialize ethers signer and provider to interact with the contracts onchain
     const privateKey = process.env.PRIVATE_KEY // fetch PRIVATE_KEY
     if (!privateKey)
