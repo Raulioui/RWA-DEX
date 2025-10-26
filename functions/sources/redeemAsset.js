@@ -1,6 +1,8 @@
 if (
   secrets.alpacaBrokerKey == "" ||
-  secrets.alpacaBrokerSecret === ""
+  secrets.alpacaBrokerSecret === "" ||
+  secrets.alpacaTradingKey === "" ||
+  secrets.alpacaTradingSecret === ""
 ) {
   throw Error(
     "need alpaca keys"
@@ -26,8 +28,8 @@ async function main() {
       url: `https://data.alpaca.markets/v2/stocks/bars/latest?symbols=${asset}`,
       headers: {
         accept: 'application/json',
-        'APCA-API-KEY-ID': 'AKDP0IZ5RKE7POWX2BVU',
-        'APCA-API-SECRET-KEY': 'WOH0tKFtvv9KXguY7OiyJnLVmFv3uYtdvwgCrwW2'
+        'APCA-API-KEY-ID': secrets.alpacaBrokerKey,
+        'APCA-API-SECRET-KEY': secrets.alpacaBrokerSecret
       }
     })
 
@@ -43,7 +45,7 @@ async function main() {
       headers: {
         accept: 'application/json', 
         'content-type': 'application/json',
-        authorization: 'Basic ' + btoa(`CK1V32HHFVQJ6XEM691F:DfEViqPT2V5JGccBfZZWZ3AgHysSA3adfemgyPr1`)
+        authorization: 'Basic ' + btoa(`${secrets.alpacaTradingKey}:${secrets.alpacaTradingSecret}`)
       },
       data: {
         side: 'sell',
@@ -56,7 +58,6 @@ async function main() {
     })
   
     const response = await alpacaRequestBuyAsset
-    console.log(response)
 
     if (!response || response.status !== 200) {
       return 0

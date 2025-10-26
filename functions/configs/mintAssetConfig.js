@@ -11,10 +11,10 @@ const requestConfigTsla = {
   codeLocation: Location.Inline,
   // Optional. Secrets can be accessed within the source code with `secrets.varName` (ie: secrets.apiKey). The secrets object can only contain string values.
   secrets: {
-    alpacaKey: process.env.ALPACA_KEY ?? "",
-    alpacaSecret: process.env.ALPACA_SECRET ?? "" ,
     alpacaBrokerKey: process.env.ALPACA_BROKER_KEY ?? "",
-    alpacaBrokerSecret: process.env.ALPACA_BROKER_SECRET ?? ""
+    alpacaBrokerSecret: process.env.ALPACA_BROKER_SECRET ?? "" ,
+    alpacaTradingKey: process.env.ALPACA_TRADING_KEY ?? "",
+    alpacaTradingSecret: process.env.ALPACA_TRADING_SECRET ?? ""
   },
   // Optional if secrets are expected in the sourceLocation of secrets (only Remote or DONHosted is supported)
   secretsLocation: Location.DONHosted,

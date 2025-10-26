@@ -12,7 +12,7 @@ const uploadSecrets = async () => {
         "https://01.functions-gateway.testnet.chain.link/",
         "https://02.functions-gateway.testnet.chain.link/",
     ]
-console.log(process.env.PRIVATE_KEY)
+
     // Initialize ethers signer and provider to interact with the contracts onchain
     const privateKey = process.env.PRIVATE_KEY // fetch PRIVATE_KEY
     if (!privateKey)
@@ -25,8 +25,10 @@ console.log(process.env.PRIVATE_KEY)
     if (!rpcUrl)
         throw new Error(`rpcUrl not provided  - check your environment variables`)
 
-    const secrets = { alpacaKey: process.env.ALPACA_KEY ?? "", alpacaSecret: process.env.ALPACA_SECRET ?? "" }
+    const secrets = { alpacaBrokerKey: process.env.ALPACA_BROKER_KEY ?? "", alpacaBrokerSecret: process.env.ALPACA_BROKER_SECRET ?? "", alpacaTradingKey: process.env.ALPACA_TRADING_KEY ?? "", alpacaTradingSecret: process.env.ALPACA_TRADING_SECRET ?? "" }
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
+    console.log(provider)
+
     const wallet = new ethers.Wallet(privateKey)
     const signer = wallet.connect(provider) // create ethers signer for signing transactions
 
