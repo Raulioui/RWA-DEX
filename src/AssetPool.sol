@@ -42,16 +42,14 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         address indexed user,
         string ticket,
         uint256 amountOfToken,
-        bytes32 requestId,
-        uint256 deadline
+        bytes32 requestId
     );
 
     event AssetRedeemed(
         address indexed user,
         string ticket,
         uint256 amountOfToken,
-        bytes32 requestId,
-        uint256 deadline
+        bytes32 requestId
     );
 
     event TokenRegistered(
@@ -154,7 +152,7 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
      * @param usdAmount The amount of usdt deposited by the user for buy the asset
      * @param ticket The ticket of the asset to mint
      */
-    function mintAsset(uint256 usdAmount, string calldata ticket) 
+    function mintAsset(uint256 usdAmount, string calldata ticket, uint256 assetAmountExpected) 
         external 
         nonReentrant 
         whenNotPaused 
@@ -174,16 +172,13 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         requestId = IAssetToken(asset.assetAddress)._mintAsset(
             usdAmount,
             msg.sender,
-            accountId
+            accountId,
+            assetAmountExpected
         );
 
         userRequests[msg.sender].push(requestId);
 
-        // Get deadline from the asset token
-        (, , uint256 timeRemaining) = IAssetToken(asset.assetAddress).getRequestWithStatus(requestId);
-        uint256 deadline = block.timestamp + timeRemaining;
-
-        emit AssetMinted(msg.sender, ticket, usdAmount, requestId, deadline);
+        emit AssetMinted(msg.sender, ticket, usdAmount, requestId);
     }
 
     /**
@@ -191,7 +186,7 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
      * @param assetAmount The amount of assets to redeem
      * @param ticket The ticket of the asset to redeem
      */
-    function redeemAsset(uint256 assetAmount, string calldata ticket) 
+    function redeemAsset(uint256 assetAmount, string calldata ticket, uint256 usdAmountExpected) 
         external 
         nonReentrant 
         whenNotPaused 
@@ -211,16 +206,13 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         requestId = IAssetToken(asset.assetAddress)._redeemAsset(
             assetAmount,
             msg.sender,
-            accountId
+            accountId,
+            usdAmountExpected
         );
 
         userRequests[msg.sender].push(requestId);
 
-        // Get deadline from the asset token
-        (, , uint256 timeRemaining) = IAssetToken(asset.assetAddress).getRequestWithStatus(requestId);
-        uint256 deadline = block.timestamp + timeRemaining;
-
-        emit AssetRedeemed(msg.sender, ticket, assetAmount, requestId, deadline);
+        emit AssetRedeemed(msg.sender, ticket, assetAmount, requestId);
     }
 
     /**

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { ConfirmedOwner } from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IChainlinkCaller } from "./interfaces/IChainlinkCaller.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IChainlinkCaller} from "./interfaces/IChainlinkCaller.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title AssetToken
@@ -21,7 +21,7 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
     /////////////////////
 
     error NotAllowedToMint();
-    error NotAllowedToRedeem(); 
+    error NotAllowedToRedeem();
     error NotAllowedCaller();
     error RequestNotPending();
     error RequestExpiredError();
@@ -34,29 +34,33 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
     /////////////////////
 
     event RefundIssued(
-        address indexed requester, 
-        uint256 amount, 
+        address indexed requester,
+        uint256 amount,
         MintOrRedeem mintOrRedeem,
         string reason
     );
-    
+
     event RequestSuccess(
-        bytes32 indexed requestId, 
+        bytes32 indexed requestId,
         address indexed requester,
-        uint256 tokenAmount, 
+        uint256 tokenAmount,
         MintOrRedeem mintOrRedeem
     );
-    
+
     event RequestExpired(
-        bytes32 indexed requestId, 
-        address indexed requester, 
-        uint256 amount, 
+        bytes32 indexed requestId,
+        address indexed requester,
+        uint256 amount,
         MintOrRedeem mintOrRedeem
     );
-    
+
     event RequestTimeoutUpdated(uint256 oldTimeout, uint256 newTimeout);
-    
-    event EmergencyWithdrawal(address indexed token, uint256 amount, address indexed to);
+
+    event EmergencyWithdrawal(
+        address indexed token,
+        uint256 amount,
+        address indexed to
+    );
 
     /////////////////////
     // Storage
@@ -93,15 +97,19 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
         RequestStatus status;
         uint256 deadline;
         uint256 createdAt;
+        uint256 amountExpected;
     }
 
     // Default timeout: 1 hour (3600 seconds)
     uint256 public requestTimeout = 3600;
-    
+
     // Minimum and maximum allowed timeouts
-    uint256 public constant MIN_TIMEOUT = 300;   // 5 minutes
+    uint256 public constant MIN_TIMEOUT = 300; // 5 minutes
     uint256 public constant MAX_TIMEOUT = 86400; // 24 hours
     uint256 public constant MAX_CLEANUP_BATCH_SIZE = 50;
+
+    uint256 public constant MAX_SLIPPAGE_BASIS_POINTS = 102; // +2%
+    uint256 public constant MIN_SLIPPAGE_BASIS_POINTS = 98;   // -2%
 
     // Core contracts
     address public immutable assetPool;
@@ -116,7 +124,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
     /////////////////////
 
     modifier validTimeout(uint256 timeout) {
-        if (timeout < MIN_TIMEOUT || timeout > MAX_TIMEOUT) revert InvalidTimeout();
+        if (timeout < MIN_TIMEOUT || timeout > MAX_TIMEOUT)
+            revert InvalidTimeout();
         _;
     }
 
@@ -148,10 +157,7 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
         string memory _symbol,
         IERC20 _usdt,
         address _chainlinkCaller
-    )
-        ConfirmedOwner(_assetPool)
-        ERC20(_name, _symbol)
-    {
+    ) ConfirmedOwner(_assetPool) ERC20(_name, _symbol) {
         assetPool = _assetPool;
         usdt = _usdt;
         chainlinkCaller = _chainlinkCaller;
@@ -169,14 +175,11 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @return requestId Unique identifier for the request
      */
     function _mintAsset(
-        uint256 usdAmount, 
-        address requester, 
-        string memory accountId
-    )
-        external
-        onlyAssetPool
-        returns (bytes32 requestId)
-    {       
+        uint256 usdAmount,
+        address requester,
+        string memory accountId,
+        uint256 assetAmountExpected
+    ) external onlyAssetPool returns (bytes32 requestId) {
         // Send the request to Chainlink
         requestId = IChainlinkCaller(chainlinkCaller).requestMint(
             usdAmount,
@@ -192,7 +195,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
             mintOrRedeem: MintOrRedeem.mint,
             status: RequestStatus.pending,
             deadline: deadline,
-            createdAt: block.timestamp
+            createdAt: block.timestamp,
+            amountExpected: assetAmountExpected
         });
 
         return requestId;
@@ -206,14 +210,11 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @return requestId Unique identifier for the request
      */
     function _redeemAsset(
-        uint256 assetAmount, 
-        address requester, 
-        string memory accountId
-    )
-        external
-        onlyAssetPool
-        returns (bytes32 requestId)
-    {
+        uint256 assetAmount,
+        address requester,
+        string memory accountId,
+        uint256 usdAmountExpected
+    ) external onlyAssetPool returns (bytes32 requestId) {
         requestId = IChainlinkCaller(chainlinkCaller).requestRedeem(
             assetAmount,
             accountId,
@@ -228,7 +229,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
             mintOrRedeem: MintOrRedeem.redeem,
             status: RequestStatus.pending,
             deadline: deadline,
-            createdAt: block.timestamp
+            createdAt: block.timestamp,
+            amountExpected: usdAmountExpected
         });
 
         return requestId;
@@ -241,35 +243,58 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @param success Whether the external API call was successful
      */
     function onFulfill(
-        bytes32 requestId, 
-        uint256 tokenAmount, 
+        bytes32 requestId,
+        uint256 tokenAmount,
         bool success
-    ) 
-        external 
-        nonReentrant 
-        onlyChainlinkCaller 
-    {
+    ) external nonReentrant onlyChainlinkCaller {
         AssetRequest storage request = requestIdToRequest[requestId];
-        
+
         if (block.timestamp >= request.deadline) revert RequestExpiredError();
-        if (request.status != RequestStatus.pending) revert RequestAlreadyProcessed();
+        if (request.status != RequestStatus.pending)
+            revert RequestAlreadyProcessed();
 
         if (!success || tokenAmount == 0) {
             // Mark request as error and issue refund
             request.status = RequestStatus.error;
             _issueRefund(request, "API call failed or returned zero amount");
         } else {
-            // Mark as fulfilled and process the transaction
-            request.status = RequestStatus.fulfilled;
-
             if (request.mintOrRedeem == MintOrRedeem.mint) {
+                // Allow only ±2% deviation from expected amount
+                uint256 upperBound = (request.amountExpected * MAX_SLIPPAGE_BASIS_POINTS) / 100;
+                uint256 lowerBound = (request.amountExpected * MIN_SLIPPAGE_BASIS_POINTS) / 100;
+
+                if (tokenAmount > upperBound || tokenAmount < lowerBound) {
+                    // Mark request as error and issue refund
+                    request.status = RequestStatus.error;
+                    _issueRefund(request, "Slippage too high on mint");
+                    return;
+                }
+
                 _mint(request.requester, tokenAmount);
+                request.status = RequestStatus.fulfilled;
             } else {
+                // Allow only ±2% deviation from expected amount
+                uint256 upperBound = (request.amountExpected * MAX_SLIPPAGE_BASIS_POINTS) / 100;
+                uint256 lowerBound = (request.amountExpected * MIN_SLIPPAGE_BASIS_POINTS) / 100;
+
+                if (tokenAmount > upperBound || tokenAmount < lowerBound) {
+                    // Mark request as error and issue refund
+                    request.status = RequestStatus.error;
+                    _issueRefund(request, "Slippage too high on redeem");
+                    return;
+                }
+
                 // For redemptions, transfer USDT from this contract to user
-                usdt.safeTransfer(request.requester, tokenAmount); 
+                usdt.safeTransfer(request.requester, tokenAmount);
+                request.status = RequestStatus.fulfilled;
             }
 
-            emit RequestSuccess(requestId, request.requester, tokenAmount, request.mintOrRedeem);
+            emit RequestSuccess(
+                requestId,
+                request.requester,
+                tokenAmount,
+                request.mintOrRedeem
+            );
         }
     }
 
@@ -277,26 +302,31 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @notice Allows cleanup of expired requests and automatic refunds
      * @param requestIds Array of request IDs to clean up
      */
-    function cleanupExpiredRequests(bytes32[] calldata requestIds) 
-        external 
-        nonReentrant 
-    {
-        if (requestIds.length > MAX_CLEANUP_BATCH_SIZE) revert InvalidBatchSize();
+    function cleanupExpiredRequests(
+        bytes32[] calldata requestIds
+    ) external nonReentrant {
+        if (requestIds.length > MAX_CLEANUP_BATCH_SIZE)
+            revert InvalidBatchSize();
 
         for (uint256 i = 0; i < requestIds.length; i++) {
             bytes32 requestId = requestIds[i];
             AssetRequest storage request = requestIdToRequest[requestId];
-            
+
             // Check if request is expired and still pending
             if (
-                request.status == RequestStatus.pending && 
+                request.status == RequestStatus.pending &&
                 block.timestamp > request.deadline
             ) {
                 // Mark as expired
                 request.status = RequestStatus.expired;
-                
-                emit RequestExpired(requestId, request.requester, request.amount, request.mintOrRedeem);
-                
+
+                emit RequestExpired(
+                    requestId,
+                    request.requester,
+                    request.amount,
+                    request.mintOrRedeem
+                );
+
                 // Issue refund
                 _issueRefund(request, "Request expired");
             }
@@ -308,12 +338,12 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @param requestId The request ID to check
      * @return expired Whether the request has expired
      */
-    function isRequestExpired(bytes32 requestId) external view returns (bool expired) {
+    function isRequestExpired(
+        bytes32 requestId
+    ) external view returns (bool expired) {
         AssetRequest memory request = requestIdToRequest[requestId];
-        return (
-            request.status == RequestStatus.pending && 
-            block.timestamp > request.deadline
-        );
+        return (request.status == RequestStatus.pending &&
+            block.timestamp > request.deadline);
     }
 
     /**
@@ -321,13 +351,18 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @param requestId The request ID to check
      * @return timeRemaining Seconds remaining (0 if expired)
      */
-    function getTimeRemaining(bytes32 requestId) external view returns (uint256 timeRemaining) {
+    function getTimeRemaining(
+        bytes32 requestId
+    ) external view returns (uint256 timeRemaining) {
         AssetRequest memory request = requestIdToRequest[requestId];
-        
-        if (request.status != RequestStatus.pending || block.timestamp >= request.deadline) {
+
+        if (
+            request.status != RequestStatus.pending ||
+            block.timestamp >= request.deadline
+        ) {
             return 0;
         }
-        
+
         return request.deadline - block.timestamp;
     }
 
@@ -335,29 +370,29 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
     // Owner Functions
     /////////////////////
 
-    function _setRequestTimeout(uint256 newTimeout) 
-        external 
-        onlyOwner 
-        validTimeout(newTimeout) 
-    {
+    function _setRequestTimeout(
+        uint256 newTimeout
+    ) external onlyOwner validTimeout(newTimeout) {
         uint256 oldTimeout = requestTimeout;
         requestTimeout = newTimeout;
         emit RequestTimeoutUpdated(oldTimeout, newTimeout);
     }
 
-    function _expireRequests(bytes32[] calldata requestIds) 
-        external 
-        onlyOwner 
-    {
+    function _expireRequests(bytes32[] calldata requestIds) external onlyOwner {
         for (uint256 i = 0; i < requestIds.length; i++) {
             bytes32 requestId = requestIds[i];
             AssetRequest storage request = requestIdToRequest[requestId];
-            
+
             if (request.status == RequestStatus.pending) {
                 request.status = RequestStatus.expired;
-                
-                emit RequestExpired(requestId, request.requester, request.amount, request.mintOrRedeem);
-                
+
+                emit RequestExpired(
+                    requestId,
+                    request.requester,
+                    request.amount,
+                    request.mintOrRedeem
+                );
+
                 // Issue refund
                 _issueRefund(request, "Emergency expiration by owner");
             }
@@ -373,7 +408,10 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @param request The request to refund
      * @param reason Reason for the refund
      */
-    function _issueRefund(AssetRequest memory request, string memory reason) internal {
+    function _issueRefund(
+        AssetRequest memory request,
+        string memory reason
+    ) internal {
         if (request.mintOrRedeem == MintOrRedeem.mint) {
             // For mint requests, return USDT that was sent to this contract
             usdt.safeTransfer(request.requester, request.amount);
@@ -382,7 +420,12 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
             _transfer(address(this), request.requester, request.amount);
         }
 
-        emit RefundIssued(request.requester, request.amount, request.mintOrRedeem, reason);
+        emit RefundIssued(
+            request.requester,
+            request.amount,
+            request.mintOrRedeem,
+            reason
+        );
     }
 
     /////////////////////
@@ -394,7 +437,9 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @param requestId The request ID to query
      * @return request The request details
      */
-    function getRequest(bytes32 requestId) external view returns (AssetRequest memory request) {
+    function getRequest(
+        bytes32 requestId
+    ) external view returns (AssetRequest memory request) {
         return requestIdToRequest[requestId];
     }
 
@@ -405,17 +450,19 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @return isExpired Whether the request has expired
      * @return timeRemaining Seconds remaining (0 if expired)
      */
-    function getRequestWithStatus(bytes32 requestId) 
-        external 
-        view 
+    function getRequestWithStatus(
+        bytes32 requestId
+    )
+        external
+        view
         returns (
-            AssetRequest memory request, 
-            bool isExpired, 
+            AssetRequest memory request,
+            bool isExpired,
             uint256 timeRemaining
-        ) 
+        )
     {
         request = requestIdToRequest[requestId];
-        
+
         if (request.status == RequestStatus.pending) {
             isExpired = block.timestamp > request.deadline;
             timeRemaining = isExpired ? 0 : request.deadline - block.timestamp;
@@ -432,9 +479,9 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @return maxTimeout Maximum allowed timeout
      * @return maxBatchSize Maximum cleanup batch size
      */
-    function getConfig() 
-        external 
-        view 
+    function getConfig()
+        external
+        view
         returns (
             uint256 timeout,
             uint256 minTimeout,
@@ -442,7 +489,12 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
             uint256 maxBatchSize
         )
     {
-        return (requestTimeout, MIN_TIMEOUT, MAX_TIMEOUT, MAX_CLEANUP_BATCH_SIZE);
+        return (
+            requestTimeout,
+            MIN_TIMEOUT,
+            MAX_TIMEOUT,
+            MAX_CLEANUP_BATCH_SIZE
+        );
     }
 
     /**
@@ -450,7 +502,11 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
      * @return usdtBalance USDT balance of this contract
      * @return assetBalance Asset token balance of this contract
      */
-    function getBalances() external view returns (uint256 usdtBalance, uint256 assetBalance) {
+    function getBalances()
+        external
+        view
+        returns (uint256 usdtBalance, uint256 assetBalance)
+    {
         usdtBalance = usdt.balanceOf(address(this));
         assetBalance = balanceOf(address(this));
     }

@@ -64,3 +64,9 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+
+
+
+
+IMPLEMENTS ADDED TO TEST:
+-SLIPPAGE

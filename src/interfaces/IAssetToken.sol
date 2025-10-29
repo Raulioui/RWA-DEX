@@ -52,13 +52,15 @@ interface IAssetToken {
     function _mintAsset(
         uint256 usdAmount, 
         address requester, 
-        string memory accountId
+        string memory accountId,
+        uint256 assetAmountExpected
     ) external returns (bytes32 requestId);
 
     function _redeemAsset(
         uint256 assetAmount, 
         address requester, 
-        string memory accountId
+        string memory accountId,
+        uint256 usdAmountExpected
     ) external returns (bytes32 requestId);
 
     function onFulfill(

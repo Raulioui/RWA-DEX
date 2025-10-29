@@ -53,7 +53,7 @@ async function main() {
         time_in_force: 'day',
         commission_type: 'notional',
         symbol: asset,
-        qty: assetAmountInEth
+        notional: usdAmountToMint.toString()
       }
     })
   

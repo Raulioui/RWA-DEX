@@ -113,7 +113,7 @@ contract TestAssetToken is Test {
 
     function testRevertsMintIfCallerIsNotAssetPool() public {
         vm.expectRevert(AssetToken.NotAllowedToMint.selector);
-        assetToken._mintAsset(MINT_AMOUNT, user, "accountId");
+        assetToken._mintAsset(MINT_AMOUNT, user, "accountId", TOKEN_AMOUNT);
     }
 
     function testMintAssetInToken() public {
@@ -123,7 +123,7 @@ contract TestAssetToken is Test {
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
         
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         vm.startPrank(address(chainlinkCaller));
         // Fulfill the request
@@ -152,7 +152,7 @@ contract TestAssetToken is Test {
         vm.startPrank(user);
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
         vm.expectEmit(true, true, true, true);
@@ -172,7 +172,7 @@ contract TestAssetToken is Test {
 
     function testRevertsRedeemIfCallerIsNotAssetPool() public {
         vm.expectRevert(AssetToken.NotAllowedToMint.selector);
-        assetToken._redeemAsset(MINT_AMOUNT, user, "accountId");
+        assetToken._redeemAsset(MINT_AMOUNT, user, "accountId", TOKEN_AMOUNT);
     }
 
     function testRedeemAssetInToken() public {
@@ -182,7 +182,7 @@ contract TestAssetToken is Test {
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
         
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         vm.startPrank(address(chainlinkCaller));
         assetToken.onFulfill(requestId, TOKEN_AMOUNT, true);
@@ -191,7 +191,7 @@ contract TestAssetToken is Test {
 
         vm.startPrank(user);
         assetToken.approve(address(assetPool), TOKEN_AMOUNT);
-        bytes32 requestIdRedeem = assetPool.redeemAsset(TOKEN_AMOUNT, TICKET);
+        bytes32 requestIdRedeem = assetPool.redeemAsset(TOKEN_AMOUNT, TICKET, MINT_AMOUNT);
         
         vm.startPrank(address(chainlinkCaller));
         vm.expectEmit(true, true, true, true);
@@ -233,7 +233,7 @@ contract TestAssetToken is Test {
 
         usdt.approve(address(assetPool), MINT_AMOUNT);
         
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId);
 
         // Simulate expired request
@@ -254,7 +254,7 @@ contract TestAssetToken is Test {
 
         usdt.approve(address(assetPool), MINT_AMOUNT);
         
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         vm.startPrank(address(chainlinkCaller));
         assetToken.onFulfill(requestId, TOKEN_AMOUNT, true);
@@ -271,7 +271,7 @@ contract TestAssetToken is Test {
 
         usdt.approve(address(assetPool), MINT_AMOUNT);
         
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, MINT_AMOUNT);
 
         // Mint completed
         assertEq(usdt.balanceOf(user), 0);
@@ -294,7 +294,7 @@ contract TestAssetToken is Test {
 
         usdt.approve(address(assetPool), MINT_AMOUNT);
         
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         vm.warp(block.timestamp + assetPool.REQUEST_COOLDOWN());
 
@@ -309,7 +309,7 @@ contract TestAssetToken is Test {
         vm.startPrank(user);
 
         assetToken.approve(address(assetPool), TOKEN_AMOUNT);
-        bytes32 requestIdRedeem = assetPool.redeemAsset(TOKEN_AMOUNT, TICKET);
+        bytes32 requestIdRedeem = assetPool.redeemAsset(TOKEN_AMOUNT, TICKET, MINT_AMOUNT);
 
         vm.warp(block.timestamp + assetPool.REQUEST_COOLDOWN());
 
@@ -344,14 +344,14 @@ contract TestAssetToken is Test {
         vm.startPrank(user); 
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId1 = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId1 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         vm.warp(block.timestamp + assetPool.REQUEST_COOLDOWN());
 
         // Second Request
         usdt.mint(user, MINT_AMOUNT); 
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId2 = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId2 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         // Expire both requests
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId2);
@@ -383,7 +383,7 @@ contract TestAssetToken is Test {
         vm.startPrank(user);
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
         bytes32[] memory requestIds = new bytes32[](1);
@@ -408,7 +408,7 @@ contract TestAssetToken is Test {
 
         usdt.approve(address(assetPool), MINT_AMOUNT);
         
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId);
 
         // Simulate expired request
@@ -424,7 +424,7 @@ contract TestAssetToken is Test {
         vm.startPrank(user);
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId);
@@ -444,7 +444,7 @@ contract TestAssetToken is Test {
         vm.startPrank(user);
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
         (
@@ -514,8 +514,8 @@ contract TestAssetToken is Test {
         assetPool.registerUser(ACCOUNT_ID);
 
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        
-        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+
+        bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId);
 
         // Usdt transfered
@@ -550,14 +550,14 @@ contract TestAssetToken is Test {
         vm.startPrank(user);
         assetPool.registerUser(ACCOUNT_ID);
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId1 = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId1 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
         // User 2 mint
         vm.startPrank(user2);
         assetPool.registerUser(ACCOUNT_ID_2);
         usdt.approve(address(assetPool), MINT_AMOUNT);
-        bytes32 requestId2 = assetPool.mintAsset(MINT_AMOUNT, TICKET);
+        bytes32 requestId2 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
         // Fulfill both
