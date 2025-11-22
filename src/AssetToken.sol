@@ -108,8 +108,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
     uint256 public constant MAX_TIMEOUT = 86400; // 24 hours
     uint256 public constant MAX_CLEANUP_BATCH_SIZE = 50;
 
-    uint256 public constant MAX_SLIPPAGE_BASIS_POINTS = 102; // +2%
-    uint256 public constant MIN_SLIPPAGE_BASIS_POINTS = 98;   // -2%
+    uint256 public constant MAX_SLIPPAGE_BASIS_POINTS = 150; // +2%
+    uint256 public constant MIN_SLIPPAGE_BASIS_POINTS = 50;   // -2%
 
     // Core contracts
     address public immutable assetPool;

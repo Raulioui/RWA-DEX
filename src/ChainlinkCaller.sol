@@ -40,6 +40,8 @@ contract ChainlinkCaller is FunctionsClient, ConfirmedOwner {
     string public ALPACA_MINT_SOURCE;
     string public ALPACA_REDEEM_SOURCE;
 
+    uint64 secretVersion;
+
     /////////////////////
     // Constructor
     /////////////////////
@@ -62,6 +64,7 @@ contract ChainlinkCaller is FunctionsClient, ConfirmedOwner {
 
         // Initialize the request with JS code
         req._initializeRequestForInlineJavaScript(ALPACA_MINT_SOURCE); 
+        req._addDONHostedSecrets(0, secretVersion);
 
         string[] memory args = new string[](3);
         args[0] = ticket;
@@ -144,5 +147,9 @@ contract ChainlinkCaller is FunctionsClient, ConfirmedOwner {
     function setAssetPool(address _assetPool) external onlyOwner {
         require(assetPool == address(0), "Asset pool already set");
         assetPool = _assetPool;
+    }
+
+    function setSecretVersion(uint64 _secretVersion) external onlyOwner {
+        secretVersion = _secretVersion;
     }
 }

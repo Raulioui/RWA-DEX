@@ -25,9 +25,13 @@ const uploadSecrets = async () => {
     if (!rpcUrl)
         throw new Error(`rpcUrl not provided  - check your environment variables`)
 
-    const secrets = { alpacaBrokerKey: process.env.ALPACA_BROKER_KEY ?? "", alpacaBrokerSecret: process.env.ALPACA_BROKER_SECRET ?? "", alpacaTradingKey: process.env.ALPACA_TRADING_KEY ?? "", alpacaTradingSecret: process.env.ALPACA_TRADING_SECRET ?? "" }
+    const secrets = { 
+        alpacabrokerkey: process.env.ALPACA_BROKER_KEY ?? "", 
+        alpacabrokersecret: process.env.ALPACA_BROKER_SECRET ?? "", 
+        alpacatradingkey: process.env.ALPACA_TRADING_KEY ?? "", 
+        alpacatradingsecret: process.env.ALPACA_TRADING_SECRET ?? "" 
+    }
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
-    console.log(provider)
 
     const wallet = new ethers.Wallet(privateKey)
     const signer = wallet.connect(provider) // create ethers signer for signing transactions
@@ -43,7 +47,7 @@ const uploadSecrets = async () => {
     // Encrypt secrets and upload to DON
     const encryptedSecretsObj = await secretsManager.encryptSecrets(secrets)
     const slotIdNumber = 0 // slot ID where to upload the secrets
-    const expirationTimeMinutes = 1440 // expiration time in minutes of the secrets, 1440 is 1 day
+    const expirationTimeMinutes = 2880 // expiration time in minutes of the secrets, 2880 is 2 days
 
 
     console.log(

@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@chainlink/contracts": "^1.4.0",
+    "@chainlink/contracts": "^1.5.0",
     "@chainlink/contracts-ccip": "^1.5.0",
     "@chainlink/functions-toolkit": "^0.3.2",
     "chart.js": "^4.4.7",
