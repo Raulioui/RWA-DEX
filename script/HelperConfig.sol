@@ -19,14 +19,6 @@ contract HelperConfig {
 
     mapping(uint256 => NetworkConfig) public chainIdToNetworkConfig;
 
-
-   // MockFunctionsRouter public functionsRouterMock;
-
-    // TSLA USD, ETH USD, and USDC USD both have 8 decimals
-    uint8 public constant DECIMALS = 8;
-    int256 public constant INITIAL_ANSWER = 2000e8;
-    int256 public constant INITIAL_ANSWER_USD = 1e8;
-
     constructor() {
         chainIdToNetworkConfig[421614] = getArbitrumSepoliaConfig();
         chainIdToNetworkConfig[11155111] = getSepoliaConfig();

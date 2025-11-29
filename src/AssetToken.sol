@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import {
+    ConfirmedOwner
+} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IChainlinkCaller} from "./interfaces/IChainlinkCaller.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    ReentrancyGuard
+} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title AssetToken
@@ -100,6 +106,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
         uint256 amountExpected;
     }
 
+    mapping(address user => AssetRequest[] requests) private userToRequests;
+
     // Default timeout: 1 hour (3600 seconds)
     uint256 public requestTimeout = 3600;
 
@@ -108,8 +116,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
     uint256 public constant MAX_TIMEOUT = 86400; // 24 hours
     uint256 public constant MAX_CLEANUP_BATCH_SIZE = 50;
 
-    uint256 public constant MAX_SLIPPAGE_BASIS_POINTS = 150; // +2%
-    uint256 public constant MIN_SLIPPAGE_BASIS_POINTS = 50;   // -2%
+    uint256 public constant MAX_SLIPPAGE_BASIS_POINTS = 102; // +2%
+    uint256 public constant MIN_SLIPPAGE_BASIS_POINTS = 98; // -2%
 
     // Core contracts
     address public immutable assetPool;
@@ -199,6 +207,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
             amountExpected: assetAmountExpected
         });
 
+        userToRequests[requester].push(requestIdToRequest[requestId]);
+
         return requestId;
     }
 
@@ -233,6 +243,8 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
             amountExpected: usdAmountExpected
         });
 
+        userToRequests[requester].push(requestIdToRequest[requestId]);
+
         return requestId;
     }
 
@@ -260,8 +272,10 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
         } else {
             if (request.mintOrRedeem == MintOrRedeem.mint) {
                 // Allow only ±2% deviation from expected amount
-                uint256 upperBound = (request.amountExpected * MAX_SLIPPAGE_BASIS_POINTS) / 100;
-                uint256 lowerBound = (request.amountExpected * MIN_SLIPPAGE_BASIS_POINTS) / 100;
+                uint256 upperBound = (request.amountExpected *
+                    MAX_SLIPPAGE_BASIS_POINTS) / 100;
+                uint256 lowerBound = (request.amountExpected *
+                    MIN_SLIPPAGE_BASIS_POINTS) / 100;
 
                 if (tokenAmount > upperBound || tokenAmount < lowerBound) {
                     // Mark request as error and issue refund
@@ -274,8 +288,10 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
                 request.status = RequestStatus.fulfilled;
             } else {
                 // Allow only ±2% deviation from expected amount
-                uint256 upperBound = (request.amountExpected * MAX_SLIPPAGE_BASIS_POINTS) / 100;
-                uint256 lowerBound = (request.amountExpected * MIN_SLIPPAGE_BASIS_POINTS) / 100;
+                uint256 upperBound = (request.amountExpected *
+                    MAX_SLIPPAGE_BASIS_POINTS) / 100;
+                uint256 lowerBound = (request.amountExpected *
+                    MIN_SLIPPAGE_BASIS_POINTS) / 100;
 
                 if (tokenAmount > upperBound || tokenAmount < lowerBound) {
                     // Mark request as error and issue refund
@@ -431,6 +447,12 @@ contract AssetToken is ConfirmedOwner, ERC20, ReentrancyGuard {
     /////////////////////
     // View Functions
     /////////////////////
+
+    function getUserRequests(
+        address user
+    ) external view returns (AssetRequest[] memory) {
+        return userToRequests[user];
+    }
 
     /**
      * @notice Get request details

@@ -2,7 +2,6 @@
 pragma solidity 0.8.25;
 
 import { FunctionsClient } from "@chainlink/contracts/src/v0.8/functions/dev/v1_X/FunctionsClient.sol";
-import { ConfirmedOwner } from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 import { FunctionsRequest } from "@chainlink/contracts/src/v0.8/functions/dev/v1_X/libraries/FunctionsRequest.sol";
 import { ConfirmedOwner } from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 
