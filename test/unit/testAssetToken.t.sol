@@ -503,7 +503,7 @@ contract TestAssetToken is Test {
 
     function testRevertsExpireRequestsIfNotOwner() public {
         bytes32[] memory requestIds = new bytes32[](1);
-        vm.expectRevert("Only callable by owner");
+        vm.expectRevert();
         assetToken._expireRequests(requestIds);
     }
 

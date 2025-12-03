@@ -7,14 +7,15 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IChainlinkCaller } from "./interfaces/IChainlinkCaller.sol";
+import { IChainlinkCaller } from "../../src/interfaces/IChainlinkCaller.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title AssetToken (Upgradeable)
- * @notice Tokenized real-world assets compatible with Beacon Proxy pattern
+ * @notice Upgraded Tokenized real-world assets compatible with Beacon Proxy pattern
+ * @dev The MIN_TIMEOUT of this contract has been changed for testing purposes
  */
-contract AssetToken is 
+contract UpgradedAssetToken is 
     Initializable,
     ERC20Upgradeable, 
     OwnableUpgradeable,
@@ -92,7 +93,7 @@ contract AssetToken is
 
     uint256 public requestTimeout;
 
-    uint256 public constant MIN_TIMEOUT = 300;
+    uint256 public constant MIN_TIMEOUT = 400;
     uint256 public constant MAX_TIMEOUT = 86400;
     uint256 public constant MAX_CLEANUP_BATCH_SIZE = 50;
 

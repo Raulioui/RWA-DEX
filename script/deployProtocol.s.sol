@@ -8,6 +8,7 @@ import {ChainlinkCaller} from "../src/ChainlinkCaller.sol";
 import { IGetChainlinkConfig } from "../src/interfaces/IGetChainlinkConfig.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { MockChainlinkCaller} from "../test/mocks/MockChainlinkCaller.sol";
+import { AssetToken } from "../src/AssetToken.sol";
 
 contract DeployProtocol is Script {
     string constant alpacaMintSource = "./functions/sources/mintAsset.js";
@@ -74,6 +75,8 @@ contract DeployProtocol is Script {
             address(chainlinkCaller)
         );
 
+        AssetToken assetTokenImplementation = new AssetToken();
+        assetPool.initializeBeacon(address(assetTokenImplementation));
 
         chainlinkCaller.setJsSources(mintSource, sellSource);
         chainlinkCaller.setAssetPool(address(assetPool));

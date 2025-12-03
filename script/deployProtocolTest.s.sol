@@ -7,6 +7,7 @@ import {AssetPool} from "../src/AssetPool.sol";
 import {ChainlinkCaller} from "../src/ChainlinkCaller.sol";
 import { IGetChainlinkConfig } from "../src/interfaces/IGetChainlinkConfig.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { AssetToken } from "../src/AssetToken.sol";
 import { MockChainlinkCaller} from "../test/mocks/MockChainlinkCaller.sol";
 
 contract DeployProtocolTest is Script {
@@ -68,6 +69,8 @@ contract DeployProtocolTest is Script {
             address(chainlinkCaller)
         );
 
+        AssetToken assetTokenImplementation = new AssetToken();
+        assetPool.initializeBeacon(address(assetTokenImplementation));
 
         chainlinkCaller.setJsSources(mintSource, sellSource);
         chainlinkCaller.setAssetPool(address(assetPool));
