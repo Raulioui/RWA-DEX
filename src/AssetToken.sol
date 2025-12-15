@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IChainlinkCaller } from "./interfaces/IChainlinkCaller.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {BrokerDollar} from "./BrokerDollar.sol";
 
 /**
  * @title AssetToken (Upgradeable)
@@ -101,7 +102,7 @@ contract AssetToken is
 
     address public assetPool;
     address public chainlinkCaller;
-    IERC20 public usdt;
+    BrokerDollar public brokerDollar;
 
     mapping(bytes32 => AssetRequest) public requestIdToRequest;
 
@@ -143,21 +144,21 @@ contract AssetToken is
      * @param _assetPool Address of the AssetPool contract
      * @param _name Name of the token (e.g., "Tesla Stock Token")
      * @param _symbol Symbol of the token (e.g., "dTSLA")
-     * @param _usdt USDT token contract address
+     * @param _brokerDollar BrokerDollar token contract address
      * @param _chainlinkCaller ChainlinkCaller contract address
      */
     function initialize(
         address _assetPool,
         string memory _name,
         string memory _symbol,
-        address _usdt,
+        address _brokerDollar,
         address _chainlinkCaller
     ) external initializer {
         __ERC20_init(_name, _symbol);
         __Ownable_init(_assetPool);
 
         assetPool = _assetPool;
-        usdt = IERC20(_usdt);
+        brokerDollar = BrokerDollar(_brokerDollar);
         chainlinkCaller = _chainlinkCaller;
         requestTimeout = 3600; // 1 hour default
     }
@@ -265,7 +266,7 @@ contract AssetToken is
                     return;
                 }
 
-                usdt.safeTransfer(request.requester, tokenAmount);
+                IERC20(brokerDollar).safeTransfer(request.requester, tokenAmount);
                 request.status = RequestStatus.fulfilled;
             }
 
@@ -370,7 +371,7 @@ contract AssetToken is
         string memory reason
     ) internal {
         if (request.mintOrRedeem == MintOrRedeem.mint) {
-            usdt.safeTransfer(request.requester, request.amount);
+            IERC20(brokerDollar).safeTransfer(request.requester, request.amount);
         } else {
             _transfer(address(this), request.requester, request.amount);
         }
@@ -442,9 +443,9 @@ contract AssetToken is
     function getBalances()
         external
         view
-        returns (uint256 usdtBalance, uint256 assetBalance)
+        returns (uint256 brokerDollarBalance, uint256 assetBalance)
     {
-        usdtBalance = usdt.balanceOf(address(this));
+        brokerDollarBalance = brokerDollar.balanceOf(address(this));
         assetBalance = balanceOf(address(this));
     }
     

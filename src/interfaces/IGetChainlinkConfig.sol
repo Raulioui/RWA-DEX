@@ -6,6 +6,5 @@ interface IGetChainlinkConfig {
         uint64 subId;
         address functionsRouter;
         bytes32 donId;
-        address usdt;
     }
 }

@@ -6,20 +6,20 @@ import {Test, console2} from "forge-std/Test.sol";
 import {AssetPool} from "../../src/AssetPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ChainlinkCaller} from "../../src/ChainlinkCaller.sol";
-import {MockUSDC} from "../mocks/MockUSDC.sol";
+import {BrokerDollar} from "../../src/BrokerDollar.sol";
 import {MockChainlinkCaller} from "../mocks/MockChainlinkCaller.sol";
 import {AssetToken} from "../../src/AssetToken.sol";
 import {IGetChainlinkConfig} from "../../src/interfaces/IGetChainlinkConfig.sol";
-import {DeployProtocolTest} from "../../script/deployProtocolTest.s.sol";
 import {IAssetToken} from "../../src/interfaces/IAssetToken.sol";
+import {BrokerGovernanceToken} from "../../src/Governance/BrokerGovernanceToken.sol";
 
 contract TestAssetToken is Test {
     AssetPool assetPool;
     AssetToken assetToken;
-    DeployProtocolTest deployProtocol;
     MockChainlinkCaller chainlinkCaller;
-    MockUSDC public usdt;
-    
+    BrokerDollar brokerDollar;
+    BrokerGovernanceToken bgt;
+
     // Test addresses
     address public user = makeAddr("user1");
     address public user2 = makeAddr("user2");
@@ -32,10 +32,14 @@ contract TestAssetToken is Test {
     string public constant ACCOUNT_ID = "test-account-123";
     string public constant ACCOUNT_ID_2 = "test-account-456";
     string public constant IMAGE_CID = "QmTestImageCID";
+
+    string constant alpacaMintSource = "./functions/sources/mintAsset.js";
+    string constant alpacaRedeemSource = "./functions/sources/redeemAsset.js";
+    string mintSource = vm.readFile(alpacaMintSource);
+    string sellSource = vm.readFile(alpacaRedeemSource);
     
-    uint256 public constant MINT_AMOUNT = 1000 * 1e6; // 1000 USDT
+    uint256 public constant MINT_AMOUNT = 1000 * 1e6; // 1000 brokerDollar
     uint256 public constant TOKEN_AMOUNT = 10 * 1e18; // 10 Asset Tokens
-    uint256 public constant INITIAL_USDT_BALANCE = 10000 * 1e6; // 10k USDT
 
     // Events for testing
     event RefundIssued(
@@ -62,29 +66,30 @@ contract TestAssetToken is Test {
     event RequestTimeoutUpdated(uint256 oldTimeout, uint256 newTimeout);
     
     function setUp() public {
-        deployProtocol = new DeployProtocolTest();
+        chainlinkCaller = new MockChainlinkCaller();
+        brokerDollar = new BrokerDollar();
 
-        IGetChainlinkConfig.GetChainlinkConfig memory chainlinkValues = deployProtocol.getChainlinkConfig();
-
-        (address chainlinkCallerAddr, address assetPoolAddr) = deployProtocol.deployProtocol(
-            chainlinkValues.subId,
-            chainlinkValues.functionsRouter,
-            chainlinkValues.donId,
-            chainlinkValues.usdt
+        assetPool = new AssetPool(
+            address(chainlinkCaller),
+            address(brokerDollar)
         );
 
-        usdt = MockUSDC(chainlinkValues.usdt);
-        assetPool = AssetPool(assetPoolAddr);
-        chainlinkCaller = MockChainlinkCaller(chainlinkCallerAddr);
+        brokerDollar.setAssetPool(address(assetPool));
+
+        AssetToken assetTokenImplementation = new AssetToken();
+        assetPool.initializeBeacon(address(assetTokenImplementation));
+
+        chainlinkCaller.setJsSources(mintSource, sellSource);
+        chainlinkCaller.setAssetPool(address(assetPool));
+
+        bgt = new BrokerGovernanceToken();
 
         // Create first token
-        vm.startPrank(address(deployProtocol));
         address token = assetPool.createTokenRegistry(NAME, TICKET, IMAGE_CID);
         vm.stopPrank();
-        
-        // Authorize tokens
-        vm.startPrank(address(assetPool));
-        chainlinkCaller.authorizeToken(TICKET, token);
+
+        vm.startPrank(user);
+        assetPool.registerUser(ACCOUNT_ID);
         vm.stopPrank();
 
         assetToken = AssetToken(token);
@@ -117,11 +122,10 @@ contract TestAssetToken is Test {
     }
 
     function testMintAssetInToken() public {
-        usdt.mint(user, MINT_AMOUNT); 
+
 
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
@@ -147,11 +151,9 @@ contract TestAssetToken is Test {
     }
 
     function testMintWithZeroTokenAmount() public {
-        usdt.mint(user, MINT_AMOUNT);
 
         vm.startPrank(user);
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
@@ -176,11 +178,8 @@ contract TestAssetToken is Test {
     }
 
     function testRedeemAssetInToken() public {
-        usdt.mint(user, MINT_AMOUNT); 
-
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
@@ -200,7 +199,7 @@ contract TestAssetToken is Test {
         vm.stopPrank();
 
         assertEq(assetToken.balanceOf(user), 0);
-        assertEq(usdt.balanceOf(user), MINT_AMOUNT);
+        assertEq(brokerDollar.balanceOf(user), brokerDollar.INITIAL_BALANCE());
 
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestIdRedeem);
 
@@ -226,12 +225,11 @@ contract TestAssetToken is Test {
     }
 
     function testRevertsIfRequestExpired() public {
-        usdt.mint(user, MINT_AMOUNT); 
+
 
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
 
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId);
@@ -247,12 +245,11 @@ contract TestAssetToken is Test {
     }
 
     function testRevertsIfRequestAlreadyProcessed() public {
-        usdt.mint(user, MINT_AMOUNT); 
+
 
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
 
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
@@ -264,17 +261,14 @@ contract TestAssetToken is Test {
     }
 
     function testRefundMintIfRequestFailed() public {
-        usdt.mint(user, MINT_AMOUNT); 
-
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
 
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, MINT_AMOUNT);
 
         // Mint completed
-        assertEq(usdt.balanceOf(user), 0);
+        assertEq(brokerDollar.balanceOf(user), brokerDollar.INITIAL_BALANCE() - MINT_AMOUNT);
 
         vm.expectEmit(true, true, true, true);
         emit RefundIssued(user, MINT_AMOUNT, AssetToken.MintOrRedeem.mint, "API call failed or returned zero amount");
@@ -287,18 +281,17 @@ contract TestAssetToken is Test {
     }
 
     function testRefundRedeemIfRequestFailed() public {
-        usdt.mint(user, MINT_AMOUNT); 
+
 
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
 
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         vm.warp(block.timestamp + assetPool.REQUEST_COOLDOWN());
 
-        usdt.mint(address(assetToken), 10 * 1e18);
+        //brokerDollar.mint(address(assetToken), 10 * 1e18);
 
         vm.startPrank(address(chainlinkCaller));
         assetToken.onFulfill(requestId, TOKEN_AMOUNT, true);
@@ -338,19 +331,16 @@ contract TestAssetToken is Test {
     }
 
     function testCleanUpExpiredRequests() public {
-        usdt.mint(user, MINT_AMOUNT); 
-
         // FIrst Request
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId1 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         vm.warp(block.timestamp + assetPool.REQUEST_COOLDOWN());
 
         // Second Request
-        usdt.mint(user, MINT_AMOUNT); 
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId2 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
 
         // Expire both requests
@@ -373,16 +363,14 @@ contract TestAssetToken is Test {
 
         assertEq(uint256(request1.status), uint256(AssetToken.RequestStatus.expired));
         assertEq(uint256(request2.status), uint256(AssetToken.RequestStatus.expired));
-        // Multiplied by 2 because there were two mint requests of the same user
-        assertEq(usdt.balanceOf(user), 2 * MINT_AMOUNT);
+        // Refund completed
+        assertEq(brokerDollar.balanceOf(user),  brokerDollar.INITIAL_BALANCE());
     }
 
     function testCleanupDoesNotAffectNonExpiredRequests() public {
-        usdt.mint(user, MINT_AMOUNT);
 
         vm.startPrank(user);
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
@@ -401,12 +389,11 @@ contract TestAssetToken is Test {
     /////////////////////
 
     function testCheckIfRequestExpired() public {
-        usdt.mint(user, MINT_AMOUNT); 
+
 
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
 
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId);
@@ -419,11 +406,9 @@ contract TestAssetToken is Test {
     }
 
     function testGetTimeRemaining() public {
-        usdt.mint(user, MINT_AMOUNT);
 
         vm.startPrank(user);
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
@@ -439,11 +424,9 @@ contract TestAssetToken is Test {
     }
 
     function testGetRequestWithStatus() public {
-        usdt.mint(user, MINT_AMOUNT);
 
         vm.startPrank(user);
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
@@ -470,14 +453,12 @@ contract TestAssetToken is Test {
     /////////////////////
 
     function testRevertsIfTimeoutIsTooLow() public {
-        vm.startPrank(address(deployProtocol));
         uint256 invalidTimeout = assetToken.MIN_TIMEOUT() - 1;
         vm.expectRevert(AssetToken.InvalidTimeout.selector);
         assetPool.setRequestTimeout(invalidTimeout, address(assetToken));
     }
 
     function testRevertsIfTimeoutIsTooHight() public {
-        vm.startPrank(address(deployProtocol));
         uint256 invalidTimeout = assetToken.MAX_TIMEOUT() + 1;
         vm.expectRevert(AssetToken.InvalidTimeout.selector);
         assetPool.setRequestTimeout(invalidTimeout, address(assetToken));
@@ -490,7 +471,6 @@ contract TestAssetToken is Test {
         vm.expectEmit(true, true, true, true);
         emit RequestTimeoutUpdated(oldTimeout, newTimeout);
 
-        vm.startPrank(address(deployProtocol));
         assetPool.setRequestTimeout(newTimeout, address(assetToken));
         vm.stopPrank();
 
@@ -508,18 +488,15 @@ contract TestAssetToken is Test {
     }
 
     function testExpireRequests() public {
-        usdt.mint(user, MINT_AMOUNT); 
-
         vm.startPrank(user); 
-        assetPool.registerUser(ACCOUNT_ID);
 
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
 
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         AssetToken.AssetRequest memory request = assetToken.getRequest(requestId);
 
-        // Usdt transfered
-        assertEq(usdt.balanceOf(user), 0);
+        // brokerDollar transfered
+        assertEq(brokerDollar.balanceOf(user), brokerDollar.INITIAL_BALANCE() - MINT_AMOUNT);
 
         // Simulate expired request
         vm.warp(block.timestamp + request.deadline + 1);
@@ -535,7 +512,7 @@ contract TestAssetToken is Test {
         assertEq(uint256(updatedRequest.status), uint256(AssetToken.RequestStatus.expired));
 
         // Refund completed
-        assertEq(usdt.balanceOf(user), MINT_AMOUNT);
+        assertEq(brokerDollar.balanceOf(user),  brokerDollar.INITIAL_BALANCE());
     }
 
     /////////////////////
@@ -543,20 +520,16 @@ contract TestAssetToken is Test {
     /////////////////////
 
     function testMultipleUsersSimultaneous() public {
-        usdt.mint(user, MINT_AMOUNT);
-        usdt.mint(user2, MINT_AMOUNT);
-
         // User 1 mint
         vm.startPrank(user);
-        assetPool.registerUser(ACCOUNT_ID);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId1 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 
         // User 2 mint
         vm.startPrank(user2);
         assetPool.registerUser(ACCOUNT_ID_2);
-        usdt.approve(address(assetPool), MINT_AMOUNT);
+        brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId2 = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
         vm.stopPrank();
 

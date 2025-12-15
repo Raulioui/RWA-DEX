@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IAssetToken } from "./interfaces/IAssetToken.sol";
-import { AssetToken } from "../src/AssetToken.sol";
-import { IChainlinkCaller } from "./interfaces/IChainlinkCaller.sol";
+import {IAssetToken} from "./interfaces/IAssetToken.sol";
+import {BrokerDollar} from "./BrokerDollar.sol";
+import {IChainlinkCaller} from "./interfaces/IChainlinkCaller.sol";
 
-import { ConfirmedOwner } from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
-import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
-/** 
+/**
  * @title AssetPool
  * @author Rauloiui
  * @notice Factory contract that creates AssetToken instances using Beacon Proxy pattern
@@ -57,37 +57,25 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         bytes32 requestId
     );
 
-    event TokenRegistered(
-        address token,
-        string name,
-        string ticket
-    );
+    event TokenRegistered(address token, string name, string ticket);
 
-    event UserRegistered(
-        address indexed user,
-        string accountId
-    );
+    event UserRegistered(address indexed user, string accountId);
 
     event ExpiredRequestsCleaned(uint256 count);
 
-    event TokenRemoved(
-        address token,
-        string ticket
-    );
+    event TokenRemoved(address token, string ticket);
 
     event AllTokensUpgraded(
         address indexed oldImplementation,
         address indexed newImplementation
     );
 
-    event BeaconCreated(
-        address indexed beacon,
-        address indexed implementation
-    );
+    event BeaconCreated(address indexed beacon, address indexed implementation);
 
     /////////////////////
     // Constants
     /////////////////////
+    BrokerDollar public immutable brokerDollar;
 
     uint256 public constant MAX_USD_AMOUNT = 10_000 * 1e6;
     uint256 public constant MIN_USD_AMOUNT = 10 * 1e6;
@@ -99,17 +87,16 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     /////////////////////
 
     struct Asset {
-        address assetAddress;  
-        uint96 id;              
+        address assetAddress;
+        uint96 id;
         string uri;
         string name;
     }
 
-    IERC20 public immutable usdt;
     address public immutable chainlinkCaller;
-    
+
     UpgradeableBeacon public assetTokenBeacon;
-    
+
     uint96 public assetCounter;
 
     mapping(address => uint256) public userLastRequest;
@@ -157,12 +144,15 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     /////////////////////
 
     constructor(
-        IERC20 _usdt,
-        address _chainlinkCaller
+        address _chainlinkCaller,
+        address _brokerDollar
     ) ConfirmedOwner(msg.sender) {
-        require(address(_usdt) != address(0) && _chainlinkCaller != address(0), "Zero address");
-        usdt = _usdt;
+        require(
+            _brokerDollar != address(0) && _chainlinkCaller != address(0),
+            "Zero address"
+        );
         chainlinkCaller = _chainlinkCaller;
+        brokerDollar = BrokerDollar(_brokerDollar);
     }
 
     /////////////////////
@@ -174,11 +164,14 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
      * @param implementation Address of the AssetToken implementation contract
      */
     function initializeBeacon(address implementation) external onlyOwner {
-        require(address(assetTokenBeacon) == address(0), "Beacon already initialized");
+        require(
+            address(assetTokenBeacon) == address(0),
+            "Beacon already initialized"
+        );
         require(implementation != address(0), "Invalid implementation");
-        
+
         assetTokenBeacon = new UpgradeableBeacon(implementation, address(this));
-        
+
         emit BeaconCreated(address(assetTokenBeacon), implementation);
     }
 
@@ -189,22 +182,26 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     /**
      * @notice Mints an asset interacting with the RWA token
      */
-    function mintAsset(uint256 usdAmount, string calldata ticket, uint256 assetAmountExpected) 
-        external 
-        nonReentrant 
-        whenNotPaused 
-        validUser 
-        rateLimited 
+    function mintAsset(
+        uint256 usdAmount,
+        string calldata ticket,
+        uint256 assetAmountExpected
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        validUser
+        rateLimited
         validAmount(usdAmount)
-        returns (bytes32 requestId) 
+        returns (bytes32 requestId)
     {
         Asset memory asset = assetInfo[ticket];
         if (asset.assetAddress == address(0)) revert InvalidAsset();
 
-        usdt.safeTransferFrom(msg.sender, asset.assetAddress, usdAmount);
+        IERC20(brokerDollar).safeTransferFrom(msg.sender, asset.assetAddress, usdAmount);
 
         string memory accountId = userToAccountId[msg.sender];
-        
+
         requestId = IAssetToken(asset.assetAddress)._mintAsset(
             usdAmount,
             msg.sender,
@@ -220,23 +217,31 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     /**
      * @notice Redeems an asset interacting with the RWA token
      */
-    function redeemAsset(uint256 assetAmount, string calldata ticket, uint256 usdAmountExpected) 
-        external 
-        nonReentrant 
-        whenNotPaused 
-        validUser 
+    function redeemAsset(
+        uint256 assetAmount,
+        string calldata ticket,
+        uint256 usdAmountExpected
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        validUser
         rateLimited
-        returns (bytes32 requestId) 
+        returns (bytes32 requestId)
     {
         if (assetAmount == 0) revert InsufficientAmount();
 
         Asset memory asset = assetInfo[ticket];
         if (asset.assetAddress == address(0)) revert InvalidAsset();
 
-        IERC20(asset.assetAddress).safeTransferFrom(msg.sender, asset.assetAddress, assetAmount);
+        IERC20(asset.assetAddress).safeTransferFrom(
+            msg.sender,
+            asset.assetAddress,
+            assetAmount
+        );
 
         string memory accountId = userToAccountId[msg.sender];
-        
+
         requestId = IAssetToken(asset.assetAddress)._redeemAsset(
             assetAmount,
             msg.sender,
@@ -250,20 +255,24 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
 
     /**
      * @notice Register a user with their account ID
-     */
+    */
     function registerUser(string calldata accountId) external {
         if (bytes(accountId).length == 0) revert InvalidAccountId();
-        if (bytes(userToAccountId[msg.sender]).length != 0) revert AlreadyRegistered();
+        if (bytes(userToAccountId[msg.sender]).length != 0)
+            revert AlreadyRegistered();
+
+        brokerDollar.mintOnRegister(msg.sender);
 
         userToAccountId[msg.sender] = accountId;
+        
         emit UserRegistered(msg.sender, accountId);
     }
 
     /**
      * @notice Clean up expired requests for a user
-     */
+    */
     function cleanupUserExpiredRequests(
-        address user, 
+        address user,
         string[] calldata tickets
     ) external {
         bytes32[] memory userRequestIds = userRequests[user];
@@ -273,12 +282,14 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
             Asset memory asset = assetInfo[tickets[i]];
             if (asset.assetAddress != address(0)) {
                 bytes32[] memory expiredIds = _getExpiredRequestIds(
-                    userRequestIds, 
+                    userRequestIds,
                     asset.assetAddress
                 );
-                
+
                 if (expiredIds.length > 0) {
-                    IAssetToken(asset.assetAddress).cleanupExpiredRequests(expiredIds);
+                    IAssetToken(asset.assetAddress).cleanupExpiredRequests(
+                        expiredIds
+                    );
                     cleanedCount += expiredIds.length;
                 }
             }
@@ -298,21 +309,22 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
      * @param name Name of the token
      * @param ticket SSymbol of the token
      * @param imageCid CID of the image on IPFS
-     */
+    */
     function createTokenRegistry(
         string calldata name,
         string calldata ticket,
         string calldata imageCid
-    ) external onlyOwner beaconInitialized returns(address) {
-        if (assetInfo[ticket].assetAddress != address(0)) revert AssetAlreadyExists();
-        
+    ) external onlyOwner beaconInitialized returns (address) {
+        if (assetInfo[ticket].assetAddress != address(0))
+            revert AssetAlreadyExists();
+
         bytes memory initData = abi.encodeWithSignature(
             "initialize(address,string,string,address,address)",
-            address(this),  
-            name,           
-            ticket,         
-            address(usdt),  
-            chainlinkCaller 
+            address(this),
+            name,
+            ticket,
+            address(brokerDollar),
+            chainlinkCaller
         );
 
         BeaconProxy proxy = new BeaconProxy(
@@ -322,7 +334,6 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
 
         address tokenAddress = address(proxy);
 
-        usdt.approve(tokenAddress, type(uint256).max);
         IChainlinkCaller(chainlinkCaller).authorizeToken(ticket, tokenAddress);
 
         assetInfo[ticket] = Asset({
@@ -344,13 +355,15 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
      * @notice Updates the implementation for all AssetToken proxies via the Beacon
      * @param newImplementation Address of the new AssetToken implementation contract
      */
-    function upgradeAllAssetTokens(address newImplementation) external onlyOwner beaconInitialized {
+    function upgradeAllAssetTokens(
+        address newImplementation
+    ) external onlyOwner beaconInitialized {
         if (newImplementation == address(0)) revert InvalidImplementation();
-        
+
         address oldImplementation = assetTokenBeacon.implementation();
-        
+
         assetTokenBeacon.upgradeTo(newImplementation);
-        
+
         emit AllTokensUpgraded(oldImplementation, newImplementation);
     }
 
@@ -371,7 +384,10 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
             }
         }
 
-        IChainlinkCaller(chainlinkCaller).deAuthorizeToken(ticket, asset.assetAddress);
+        IChainlinkCaller(chainlinkCaller).deAuthorizeToken(
+            ticket,
+            asset.assetAddress
+        );
 
         emit TokenRemoved(asset.assetAddress, ticket);
     }
@@ -379,14 +395,20 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     /**
      * @notice Set request timeout for a specific asset
      */
-    function setRequestTimeout(uint256 newTimeout, address asset) external onlyOwner {
+    function setRequestTimeout(
+        uint256 newTimeout,
+        address asset
+    ) external onlyOwner {
         IAssetToken(asset)._setRequestTimeout(newTimeout);
     }
 
     /**
      * @notice Emergency function to manually expire stuck requests
      */
-    function expireRequests(bytes32[] calldata requestIds, address asset) external onlyOwner {
+    function expireRequests(
+        bytes32[] calldata requestIds,
+        address asset
+    ) external onlyOwner {
         IAssetToken(asset)._expireRequests(requestIds);
     }
 
@@ -409,7 +431,7 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     /////////////////////
 
     function _getExpiredRequestIds(
-        bytes32[] memory userRequestIds, 
+        bytes32[] memory userRequestIds,
         address assetAddress
     ) internal view returns (bytes32[] memory expiredIds) {
         uint256 expiredCount = 0;
@@ -423,7 +445,11 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         expiredIds = new bytes32[](expiredCount);
         uint256 index = 0;
 
-        for (uint256 i = 0; i < userRequestIds.length && index < expiredCount; i++) {
+        for (
+            uint256 i = 0;
+            i < userRequestIds.length && index < expiredCount;
+            i++
+        ) {
             if (IAssetToken(assetAddress).isRequestExpired(userRequestIds[i])) {
                 expiredIds[index] = userRequestIds[i];
                 index++;
@@ -444,15 +470,10 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         return address(assetTokenBeacon);
     }
 
-    function getUserPendingRequests(address user, string calldata ticket) 
-        external 
-        view 
-        returns (IAssetToken.AssetRequest[] memory requests) 
-    {
-        if (bytes(userToAccountId[user]).length == 0) {
-            revert UserNotRegistered();
-        }
-
+    function getUserPendingRequests(
+        address user,
+        string calldata ticket
+    ) validUser external view returns (IAssetToken.AssetRequest[] memory requests) {
         Asset memory asset = assetInfo[ticket];
         if (asset.assetAddress == address(0)) revert InvalidAsset();
 
@@ -460,11 +481,14 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         uint256 pendingCount = 0;
 
         for (uint256 i = 0; i < userRequestIds.length; i++) {
-            (IAssetToken.AssetRequest memory request, , ) = IAssetToken(asset.assetAddress)
-                .getRequestWithStatus(userRequestIds[i]);
-            
-            if (request.requester == user && 
-                request.status == IAssetToken.RequestStatus.pending) {
+            (IAssetToken.AssetRequest memory request, , ) = IAssetToken(
+                asset.assetAddress
+            ).getRequestWithStatus(userRequestIds[i]);
+
+            if (
+                request.requester == user &&
+                request.status == IAssetToken.RequestStatus.pending
+            ) {
                 pendingCount++;
             }
         }
@@ -472,12 +496,19 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         requests = new IAssetToken.AssetRequest[](pendingCount);
         uint256 index = 0;
 
-        for (uint256 i = 0; i < userRequestIds.length && index < pendingCount; i++) {
-            (IAssetToken.AssetRequest memory request, , ) = IAssetToken(asset.assetAddress)
-                .getRequestWithStatus(userRequestIds[i]);
-            
-            if (request.requester == user && 
-                request.status == IAssetToken.RequestStatus.pending) {
+        for (
+            uint256 i = 0;
+            i < userRequestIds.length && index < pendingCount;
+            i++
+        ) {
+            (IAssetToken.AssetRequest memory request, , ) = IAssetToken(
+                asset.assetAddress
+            ).getRequestWithStatus(userRequestIds[i]);
+
+            if (
+                request.requester == user &&
+                request.status == IAssetToken.RequestStatus.pending
+            ) {
                 requests[index] = request;
                 index++;
             }
@@ -485,16 +516,20 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     }
 
     function checkUserExpiredRequests(
-        address user, 
+        address user,
         string[] calldata tickets
     ) external view returns (bool hasExpired, uint256 expiredCount) {
         bytes32[] memory userRequestIds = userRequests[user];
-        
+
         for (uint256 i = 0; i < tickets.length; i++) {
             Asset memory asset = assetInfo[tickets[i]];
             if (asset.assetAddress != address(0)) {
                 for (uint256 j = 0; j < userRequestIds.length; j++) {
-                    if (IAssetToken(asset.assetAddress).isRequestExpired(userRequestIds[j])) {
+                    if (
+                        IAssetToken(asset.assetAddress).isRequestExpired(
+                            userRequestIds[j]
+                        )
+                    ) {
                         expiredCount++;
                         hasExpired = true;
                     }
@@ -503,19 +538,29 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
         }
     }
 
-    function getAssetInfo(string calldata ticket) external view returns (Asset memory asset) {
+    function getAssetInfo(
+        string calldata ticket
+    ) external view returns (Asset memory asset) {
         return assetInfo[ticket];
     }
 
-    function isUserRegistered(address user) external view returns (bool registered) {
+    function isUserRegistered(
+        address user
+    ) external view returns (bool registered) {
         return bytes(userToAccountId[user]).length > 0;
     }
 
-    function getUserRequests(address user) external view returns (bytes32[] memory) {
+    function getUserRequests(
+        address user
+    ) external view returns (bytes32[] memory) {
         return userRequests[user];
     }
 
     function getAllTokenTickets() external view returns (string[] memory) {
         return assetTickets;
+    }
+
+    function getBrokerDollarAddress() external view returns (address) {
+        return address(brokerDollar);
     }
 }
