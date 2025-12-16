@@ -112,11 +112,28 @@ contract TestGovernance is Test {
     }
 
     function testProposalDefeatedIfNoVotes() public {
-        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas,) =
-            _buildCreateTokenProposal();
+        // build proposal
+        address[] memory targetsRequest = new address[](1);
+        targetsRequest[0] = address(assetPool);
+
+        uint256[] memory valuesRequest = new uint256[](1);
+        valuesRequest[0] = 0;
+
+        uint256 newTimeout = 4000;
+
+        AssetPool.Asset memory asset = _createToken();
+
+        bytes[] memory calldatasRequest = new bytes[](1);
+        calldatasRequest[0] = abi.encodeWithSignature(
+            "setRequestTimeout(uint256,address)",
+            newTimeout,
+            asset.assetAddress
+        );
+
+        string memory descriptionRequest = "Update request timeout";
 
         vm.prank(userA);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "No votes test");
+        uint256 proposalId = governor.propose(targetsRequest, valuesRequest, calldatasRequest, descriptionRequest);
 
         vm.roll(block.number + governor.votingDelay() + 1);
         vm.roll(block.number + governor.votingPeriod() + 1);
@@ -486,8 +503,6 @@ contract TestGovernance is Test {
             IMAGE_CID
         );
 
-        string memory description = "Add TSLA asset to AssetPool";
-
         address[] memory targets = new address[](1);
         targets[0] = target;
 
@@ -495,9 +510,9 @@ contract TestGovernance is Test {
         values[0] = value;
 
         bytes[] memory calldatas = new bytes[](1);
-
+        calldatas[0] = callData;
     
-        proposalId = governor.propose(targets, values, calldatas, "Add TSLA asset to AssetPool");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Add TSLA asset to AssetPool");
 
         vm.roll(block.number + governor.votingDelay() + 1);
 
