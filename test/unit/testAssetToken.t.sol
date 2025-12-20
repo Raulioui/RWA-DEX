@@ -151,7 +151,6 @@ contract TestAssetToken is Test {
     }
 
     function testMintWithZeroTokenAmount() public {
-
         vm.startPrank(user);
         brokerDollar.approve(address(assetPool), MINT_AMOUNT);
         bytes32 requestId = assetPool.mintAsset(MINT_AMOUNT, TICKET, TOKEN_AMOUNT);
@@ -191,6 +190,7 @@ contract TestAssetToken is Test {
         vm.startPrank(user);
         assetToken.approve(address(assetPool), TOKEN_AMOUNT);
         bytes32 requestIdRedeem = assetPool.redeemAsset(TOKEN_AMOUNT, TICKET, MINT_AMOUNT);
+        assertEq(assetToken.totalSupply(), TOKEN_AMOUNT);
         
         vm.startPrank(address(chainlinkCaller));
         vm.expectEmit(true, true, true, true);
@@ -213,6 +213,8 @@ contract TestAssetToken is Test {
         assertTrue(request.deadline > block.timestamp);
         assertTrue(request.createdAt <= block.timestamp);
         assertEq(request.deadline, request.createdAt + assetToken.requestTimeout());
+        // Total supply burned
+        assertEq(assetToken.totalSupply(), 0);
     }
 
     /////////////////////

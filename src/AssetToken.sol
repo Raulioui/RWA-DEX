@@ -266,8 +266,10 @@ contract AssetToken is
                     return;
                 }
 
-                IERC20(brokerDollar).safeTransfer(request.requester, tokenAmount);
                 request.status = RequestStatus.fulfilled;
+
+                IERC20(brokerDollar).safeTransfer(request.requester, tokenAmount);
+                _burn(address(this), request.amount);
             }
 
             emit RequestSuccess(

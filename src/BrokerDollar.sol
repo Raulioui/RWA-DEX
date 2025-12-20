@@ -6,9 +6,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract BrokerDollar is ERC20, Ownable {
 address public assetPool;
+uint8 public constant DECIMALS = 6;
     uint256 public constant INITIAL_BALANCE = 10_000 ether;
 
     constructor() ERC20("Broker Dollar", "bUSD") Ownable(msg.sender) {}
+
+    function decimals() public pure override returns (uint8) {
+        return DECIMALS;
+    }
 
     function setAssetPool(address _assetPool) external onlyOwner {
         require(assetPool == address(0), "AssetPool already set");

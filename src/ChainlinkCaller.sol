@@ -82,6 +82,7 @@ contract ChainlinkCaller is FunctionsClient, ConfirmedOwner {
 
         // Initialize the request with JS code
         req._initializeRequestForInlineJavaScript(ALPACA_REDEEM_SOURCE); 
+        req._addDONHostedSecrets(0, secretVersion);
 
         string[] memory args = new string[](3);
         args[0] = ticket;
