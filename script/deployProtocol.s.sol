@@ -115,7 +115,7 @@ contract DeployProtocol is Script {
         chainlinkCaller.setAssetPool(address(assetPool));
 
         // 7) TimelockController (gobernanza)
-        uint256 minDelay = 2 days;
+        uint256 minDelay = 0;
 
         address[] memory proposers = new address[](0); // nadie propone directo al timelock
         address[] memory executors = new address[](1);
@@ -155,6 +155,31 @@ contract DeployProtocol is Script {
 
         // 11) AssetPool pasa a ser controlado por la gobernanza
         assetPool.transferOwnership(address(timelock));
+
+        bytes32 salt = keccak256("accept-assetpool-ownership");
+bytes memory data = abi.encodeWithSignature("acceptOwnership()");
+
+// schedule
+timelock.schedule(
+    address(assetPool),
+    0,
+    data,
+    bytes32(0),
+    salt,
+    timelock.getMinDelay()
+);
+
+// execute (works immediately only if minDelay == 0)
+timelock.execute(
+    address(assetPool),
+    0,
+    data,
+    bytes32(0),
+    salt
+);
+
+require(assetPool.owner() == address(timelock), "Ownership not transferred");
+
 
         // (Opcional más adelante) que la DAO controle el mint de BGT:
         // bgt.transferOwnership(address(timelock));
