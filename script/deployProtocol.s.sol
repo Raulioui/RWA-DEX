@@ -14,38 +14,34 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {RWAGovernor} from "../src/Governance/RWAGovernor.sol";
 
 contract DeployProtocol is Script {
-    string constant alpacaMintSource   = "./functions/sources/mintAsset.js";
-    string constant alpacaRedeemSource = "./functions/sources/redeemAsset.js";
-
-    string mintSource = vm.readFile(alpacaMintSource);
-    string sellSource = vm.readFile(alpacaRedeemSource);
+    string constant ALPACA_MINT_SOURCE   = "./functions/sources/mintAsset.js";
+    string constant ALPACA_REDEEM_SOURCE = "./functions/sources/redeemAsset.js";
 
     function run() external {
-        IGetChainlinkConfig.GetChainlinkConfig memory chainlinkValues = getChainlinkConfig();
+        IGetChainlinkConfig.GetChainlinkConfig memory cfg = getChainlinkConfig();
 
-        vm.startBroadcast(); // usa la PK que hayas configurado en Foundry
+        string memory mintSource = vm.readFile(ALPACA_MINT_SOURCE);
+        string memory redeemSource = vm.readFile(ALPACA_REDEEM_SOURCE);
+
+        vm.startBroadcast();
 
         (
-            address chainlinkCallerAddr,
-            address assetPoolAddr,
-            address brokerDollarAddr,
-            address bgtAddr,
-            address timelockAddr,
-            address governorAddr
-        ) = deployProtocol(
-            chainlinkValues.subId,
-            chainlinkValues.functionsRouter,
-            chainlinkValues.donId
-        );
+            ChainlinkCaller chainlinkCaller,
+            AssetPool assetPool,
+            BrokerDollar brokerDollar,
+            BrokerGovernanceToken bgt,
+            TimelockController timelock,
+            RWAGovernor governor
+        ) = deployProtocol(cfg.subId, cfg.functionsRouter, cfg.donId, mintSource, redeemSource);
 
         vm.stopBroadcast();
 
-        console2.log("ChainlinkCaller:", chainlinkCallerAddr);
-        console2.log("AssetPool:      ", assetPoolAddr);
-        console2.log("BrokerDollar:   ", brokerDollarAddr);
-        console2.log("BGT:            ", bgtAddr);
-        console2.log("Timelock:       ", timelockAddr);
-        console2.log("Governor:       ", governorAddr);
+        console2.log("ChainlinkCaller:", address(chainlinkCaller));
+        console2.log("AssetPool:      ", address(assetPool));
+        console2.log("BrokerDollar:   ", address(brokerDollar));
+        console2.log("BGT:            ", address(bgt));
+        console2.log("Timelock:       ", address(timelock));
+        console2.log("Governor:       ", address(governor));
     }
 
     function getChainlinkConfig()
@@ -53,144 +49,122 @@ contract DeployProtocol is Script {
         returns (IGetChainlinkConfig.GetChainlinkConfig memory)
     {
         HelperConfig helperConfig = new HelperConfig();
-        (
-            address functionsRouter,
-            bytes32 donId,
-            uint64 subId
-        ) = helperConfig.activeNetworkConfig();
+        (address functionsRouter, bytes32 donId, uint64 subId) = helperConfig.activeNetworkConfig();
 
-        if (functionsRouter == address(0) || donId == bytes32(0) || subId == 0) {
-            revert("something is wrong");
-        }
+        require(functionsRouter != address(0), "functionsRouter=0");
+        require(donId != bytes32(0), "donId=0");
+        require(subId != 0, "subId=0");
 
-        return IGetChainlinkConfig.GetChainlinkConfig(
-            subId,
-            functionsRouter,
-            donId
-        );
+        return IGetChainlinkConfig.GetChainlinkConfig(subId, functionsRouter, donId);
     }
 
     function deployProtocol(
-        uint64 _subId,
-        address _functionsRouter,
-        bytes32 _donID
+        uint64 subId,
+        address functionsRouter,
+        bytes32 donId,
+        string memory mintSource,
+        string memory redeemSource
     )
-        public
+        internal
         returns (
-            address chainlinkCallerAddr,
-            address assetPoolAddr,
-            address brokerDollarAddr,
-            address bgtAddr,
-            address timelockAddr,
-            address governorAddr
+            ChainlinkCaller chainlinkCaller,
+            AssetPool assetPool,
+            BrokerDollar brokerDollar,
+            BrokerGovernanceToken bgt,
+            TimelockController timelock,
+            RWAGovernor governor
         )
     {
-        // 1) Tokens internos
-        BrokerDollar brokerDollar = new BrokerDollar();
-        BrokerGovernanceToken bgt = new BrokerGovernanceToken(); 
-        // IMPORTANTE: que el constructor de BGT haga _mint(msg.sender, TOTAL_SUPPLY)
+        // 1) Internal tokens
+        brokerDollar = new BrokerDollar();
+        bgt = new BrokerGovernanceToken();
 
         // 2) Chainlink Functions caller
-        ChainlinkCaller chainlinkCaller = new ChainlinkCaller(
-            _subId,
-            _functionsRouter,
-            _donID
-        );
+        chainlinkCaller = new ChainlinkCaller(subId, functionsRouter, donId);
 
-        // 3) AssetPool (owner inicial = msg.sender del broadcast)
-        AssetPool assetPool = new AssetPool(
-            address(chainlinkCaller),
-            address(brokerDollar)
-        );
+        // 3) AssetPool (initial owner = msg.sender (EOA broadcasting))
+        assetPool = new AssetPool(address(chainlinkCaller), address(brokerDollar));
 
-        // 4) BrokerDollar <-> AssetPool
+        // 4) Wire BrokerDollar <-> AssetPool
         brokerDollar.setAssetPool(address(assetPool));
 
-        // 5) Beacon de AssetToken
-        AssetToken assetTokenImplementation = new AssetToken();
-        assetPool.initializeBeacon(address(assetTokenImplementation));
+        // 5) Beacon implementation for AssetToken
+        AssetToken impl = new AssetToken();
+        assetPool.initializeBeacon(address(impl));
 
-        // 6) Configurar Chainlink caller
-        chainlinkCaller.setJsSources(mintSource, sellSource);
+        // 6) Configure ChainlinkCaller
+        chainlinkCaller.setJsSources(mintSource, redeemSource);
         chainlinkCaller.setAssetPool(address(assetPool));
 
-        // 7) TimelockController (gobernanza)
-        uint256 minDelay = 0;
+        // 7) Timelock (DEMO MODE: 0 delay)
 
-        address[] memory proposers = new address[](0); // nadie propone directo al timelock
-        address[] memory executors = new address[](1);
-        executors[0] = address(0);                     // cualquiera puede ejecutar
+uint256 minDelay = 0;
+address[] memory proposers = new address[](0);
+address[] memory executors = new address[](1); // ← Fix: size 1
+executors[0] = address(0); // anyone can execute
 
-        TimelockController timelock = new TimelockController(
-            minDelay,
-            proposers,
-            executors,
-            msg.sender // admin inicial (tu EOA del broadcast)
-        );
+timelock = new TimelockController(
+    minDelay,
+    proposers,
+    executors,
+    msg.sender // admin initially (deployer EOA)
+);
 
         // 8) Governor
-        RWAGovernor governor = new RWAGovernor(
-            bgt,
-            timelock
-        );
+        governor = new RWAGovernor(bgt, timelock);
 
-        // 9) Roles del timelock
+        // 9) Timelock roles
         bytes32 PROPOSER_ROLE  = timelock.PROPOSER_ROLE();
         bytes32 EXECUTOR_ROLE  = timelock.EXECUTOR_ROLE();
         bytes32 CANCELLER_ROLE = timelock.CANCELLER_ROLE();
         bytes32 ADMIN_ROLE     = timelock.DEFAULT_ADMIN_ROLE();
 
-        // Governor puede proponer y cancelar
-        timelock.grantRole(PROPOSER_ROLE,  address(governor));
+        // Governor can propose + cancel
+        timelock.grantRole(PROPOSER_ROLE, address(governor));
         timelock.grantRole(CANCELLER_ROLE, address(governor));
 
-        // Cualquiera puede ejecutar
+        // execution is already open via constructor, but this is fine:
         timelock.grantRole(EXECUTOR_ROLE, address(0));
 
-        // Al final te quitas tú de admin (quedará solo el timelock como self-admin)
-        timelock.revokeRole(ADMIN_ROLE, msg.sender);
+        // IMPORTANT: allow deployer to schedule once (bootstrap)
+        timelock.grantRole(PROPOSER_ROLE, msg.sender);
 
-        // 10) Tesorería de la DAO (ajusta la cantidad a tu totalSupply real)
+        // 10) Treasury funding (adjust to your supply/decimals)
+        // NOTE: if BGT uses 18 decimals and total supply is in ether units, this is ok.
         bgt.transfer(address(timelock), 500_000 ether);
 
-        // 11) AssetPool pasa a ser controlado por la gobernanza
+        // 11) Transfer AssetPool ownership to timelock (ConfirmedOwner = 2-step)
         assetPool.transferOwnership(address(timelock));
 
+        // 12) Timelock schedules + executes acceptOwnership() on AssetPool
         bytes32 salt = keccak256("accept-assetpool-ownership");
-bytes memory data = abi.encodeWithSignature("acceptOwnership()");
+        bytes memory data = abi.encodeWithSignature("acceptOwnership()");
 
-// schedule
-timelock.schedule(
-    address(assetPool),
-    0,
-    data,
-    bytes32(0),
-    salt,
-    timelock.getMinDelay()
-);
-
-// execute (works immediately only if minDelay == 0)
-timelock.execute(
-    address(assetPool),
-    0,
-    data,
-    bytes32(0),
-    salt
-);
-
-require(assetPool.owner() == address(timelock), "Ownership not transferred");
-
-
-        // (Opcional más adelante) que la DAO controle el mint de BGT:
-        // bgt.transferOwnership(address(timelock));
-
-        return (
-            address(chainlinkCaller),
+        timelock.schedule(
             address(assetPool),
-            address(brokerDollar),
-            address(bgt),
-            address(timelock),
-            address(governor)
+            0,
+            data,
+            bytes32(0),
+            salt,
+            timelock.getMinDelay()
         );
+
+        timelock.execute(
+            address(assetPool),
+            0,
+            data,
+            bytes32(0),
+            salt
+        );
+
+        require(assetPool.owner() == address(timelock), "AssetPool owner != timelock");
+
+        // 13) Clean up bootstrap proposer (optional but good practice)
+        timelock.revokeRole(PROPOSER_ROLE, msg.sender);
+
+        // 14) Remove deployer as admin (leave governance in control)
+        timelock.revokeRole(ADMIN_ROLE, msg.sender);
+
+        return (chainlinkCaller, assetPool, brokerDollar, bgt, timelock, governor);
     }
 }
