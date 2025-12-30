@@ -269,7 +269,7 @@ contract AssetToken is
                 request.status = RequestStatus.fulfilled;
 
                 IERC20(brokerDollar).safeTransfer(request.requester, tokenAmount);
-                _burn(address(this), request.amount);
+                _burn(request.requester, request.amount);
             }
 
             emit RequestSuccess(

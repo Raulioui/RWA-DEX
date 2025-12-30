@@ -35,13 +35,6 @@ contract DeployProtocol is Script {
         ) = deployProtocol(cfg.subId, cfg.functionsRouter, cfg.donId, mintSource, redeemSource);
 
         vm.stopBroadcast();
-
-        console2.log("ChainlinkCaller:", address(chainlinkCaller));
-        console2.log("AssetPool:      ", address(assetPool));
-        console2.log("BrokerDollar:   ", address(brokerDollar));
-        console2.log("BGT:            ", address(bgt));
-        console2.log("Timelock:       ", address(timelock));
-        console2.log("Governor:       ", address(governor));
     }
 
     function getChainlinkConfig()
@@ -130,7 +123,6 @@ timelock = new TimelockController(
         timelock.grantRole(PROPOSER_ROLE, msg.sender);
 
         // 10) Treasury funding (adjust to your supply/decimals)
-        // NOTE: if BGT uses 18 decimals and total supply is in ether units, this is ok.
         bgt.transfer(address(timelock), 500_000 ether);
 
         // 11) Transfer AssetPool ownership to timelock (ConfirmedOwner = 2-step)

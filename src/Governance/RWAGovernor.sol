@@ -26,14 +26,13 @@ contract RWAGovernor is
     }
 
     function votingPeriod() public pure override returns (uint256) {
-        return 50400; // 1 week
+        return 7200; // 1 day
     }
 
     function proposalThreshold() public pure override returns (uint256) {
         return 0;
     }
 
-    // The functions below are overrides required by Solidity.
     function state(uint256 proposalId) public view override(Governor, GovernorTimelockControl) returns (ProposalState) {
         return super.state(proposalId);
     }

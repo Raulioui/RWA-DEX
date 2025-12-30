@@ -5,8 +5,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract BrokerDollar is ERC20, Ownable {
-address public assetPool;
-uint8 public constant DECIMALS = 6;
+    address public assetPool;
+    uint8 public constant DECIMALS = 6;
     uint256 public constant INITIAL_BALANCE = 10_000 * 1e6;
 
     constructor() ERC20("Broker Dollar", "bUSD") Ownable(msg.sender) {}
