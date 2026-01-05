@@ -1,70 +1,68 @@
-## Foundry
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+### Token deployment model
+- Asset tokens are deployed as **BeaconProxy** instances.
+- All proxies share a single implementation through `UpgradeableBeacon`.
+- Upgrades can be performed for all assets at once (governance-only).
 
-Foundry consists of:
+---
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Governance lifecycle
 
-## Documentation
+Typical proposal flow (OZ Governor + Timelock):
 
-https://book.getfoundry.sh/
+1. **Delegate** voting power (if using ERC20Votes):
+   - `BGT.delegate(yourAddress)`
+2. **Create proposal**:
+   - Governor `propose(targets, values, calldatas, description)`
+3. Wait until proposal becomes **Active** (after voting delay)
+4. **Vote**:
+   - `castVote(proposalId, support)` (For/Against/Abstain)
+5. If **Succeeded**:
+   - `queue(targets, values, calldatas, descriptionHash)`
+6. Then **Execute**:
+   - `execute(targets, values, calldatas, descriptionHash)`
 
-## Usage
+> Note: voting power is snapshotted at `proposalSnapshot`.  
+> If you delegate *after* snapshot, your vote weight will be 0.
 
-### Build
+---
 
-```shell
-$ forge build
-```
+## Repositories
 
-### Test
+This project is split into two repos:
 
-```shell
-$ forge test
-```
+- **Contracts**: `RWA-DEX-main`  
+  Solidity + Foundry + Chainlink Functions scripts and deploy scripts.
+- **Frontend**: `RWA-FRONTEND-main`  
+  Next.js UI + API routes for Alpaca proxy + governance pages.
 
-### Format
+---
 
-```shell
-$ forge fmt
-```
+## Quickstart
 
-### Gas Snapshots
+### 1) Contracts
+- Deploy protocol on testnet (Foundry script)
+- Save deployed addresses (AssetPool, Governor, Timelock, etc.)
 
-```shell
-$ forge snapshot
-```
+### 2) Frontend
+- Put addresses into `lib/contracts.js`
+- Configure `.env.local` for Alpaca keys (server-only routes)
+- Run `npm run dev`
 
-### Anvil
+---
 
-```shell
-$ anvil
-```
+## Deploy (Contracts)
 
-### Deploy
+### Requirements
+- Foundry (`forge`, `cast`)
+- Node.js (for Chainlink Functions scripts)
+- Funded deployer wallet + RPC URL
+- Chainlink Functions subscription on your target testnet
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
-
+### Install
+```bash
+forge install
+npm install
 
 
 
