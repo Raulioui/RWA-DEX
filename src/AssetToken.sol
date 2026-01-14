@@ -13,6 +13,7 @@ import {BrokerDollar} from "./BrokerDollar.sol";
 
 /**
  * @title AssetToken (Upgradeable)
+ * @author Rauloiui
  * @notice Tokenized real-world assets compatible with Beacon Proxy pattern
  */
 contract AssetToken is 
