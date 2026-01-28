@@ -22,11 +22,11 @@ contract RWAGovernor is
     ) Governor("RWAGovernor") GovernorVotes(_token) GovernorVotesQuorumFraction(4) GovernorTimelockControl(_timelock) {}
 
     function votingDelay() public pure override returns (uint256) {
-        return 7200; // 1 day
+        return 100; // ~15 minutes (testing purpose)
     }
 
     function votingPeriod() public pure override returns (uint256) {
-        return 7200; // 1 day
+        return 100; // ~15 minutes (testing purpose)
     }
 
     function proposalThreshold() public pure override returns (uint256) {

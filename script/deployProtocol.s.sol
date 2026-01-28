@@ -9,16 +9,21 @@ import {ChainlinkCaller} from "../src/ChainlinkCaller.sol";
 import {IGetChainlinkConfig} from "../src/interfaces/IGetChainlinkConfig.sol";
 import {AssetToken} from "../src/AssetToken.sol";
 import {BrokerDollar} from "../src/BrokerDollar.sol";
-import {BrokerGovernanceToken} from "../src/Governance/BrokerGovernanceToken.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {
+    BrokerGovernanceToken
+} from "../src/Governance/BrokerGovernanceToken.sol";
+import {
+    TimelockController
+} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {RWAGovernor} from "../src/Governance/RWAGovernor.sol";
 
 contract DeployProtocol is Script {
-    string constant ALPACA_MINT_SOURCE   = "./functions/sources/mintAsset.js";
+    string constant ALPACA_MINT_SOURCE = "./functions/sources/mintAsset.js";
     string constant ALPACA_REDEEM_SOURCE = "./functions/sources/redeemAsset.js";
 
     function run() external {
-        IGetChainlinkConfig.GetChainlinkConfig memory cfg = getChainlinkConfig();
+        IGetChainlinkConfig.GetChainlinkConfig
+            memory cfg = getChainlinkConfig();
 
         string memory mintSource = vm.readFile(ALPACA_MINT_SOURCE);
         string memory redeemSource = vm.readFile(ALPACA_REDEEM_SOURCE);
@@ -32,7 +37,13 @@ contract DeployProtocol is Script {
             BrokerGovernanceToken bgt,
             TimelockController timelock,
             RWAGovernor governor
-        ) = deployProtocol(cfg.subId, cfg.functionsRouter, cfg.donId, mintSource, redeemSource);
+        ) = deployProtocol(
+                cfg.subId,
+                cfg.functionsRouter,
+                cfg.donId,
+                mintSource,
+                redeemSource
+            );
 
         vm.stopBroadcast();
     }
@@ -42,13 +53,19 @@ contract DeployProtocol is Script {
         returns (IGetChainlinkConfig.GetChainlinkConfig memory)
     {
         HelperConfig helperConfig = new HelperConfig();
-        (address functionsRouter, bytes32 donId, uint64 subId) = helperConfig.activeNetworkConfig();
+        (address functionsRouter, bytes32 donId, uint64 subId) = helperConfig
+            .activeNetworkConfig();
 
         require(functionsRouter != address(0), "functionsRouter=0");
         require(donId != bytes32(0), "donId=0");
         require(subId != 0, "subId=0");
 
-        return IGetChainlinkConfig.GetChainlinkConfig(subId, functionsRouter, donId);
+        return
+            IGetChainlinkConfig.GetChainlinkConfig(
+                subId,
+                functionsRouter,
+                donId
+            );
     }
 
     function deployProtocol(
@@ -76,7 +93,10 @@ contract DeployProtocol is Script {
         chainlinkCaller = new ChainlinkCaller(subId, functionsRouter, donId);
 
         // 3) AssetPool (initial owner = msg.sender (EOA broadcasting))
-        assetPool = new AssetPool(address(chainlinkCaller), address(brokerDollar));
+        assetPool = new AssetPool(
+            address(chainlinkCaller),
+            address(brokerDollar)
+        );
 
         // 4) Wire BrokerDollar <-> AssetPool
         brokerDollar.setAssetPool(address(assetPool));
@@ -91,26 +111,26 @@ contract DeployProtocol is Script {
 
         // 7) Timelock (DEMO MODE: 0 delay)
 
-uint256 minDelay = 0;
-address[] memory proposers = new address[](0);
-address[] memory executors = new address[](1); // ← Fix: size 1
-executors[0] = address(0); // anyone can execute
+        uint256 minDelay = 0;
+        address[] memory proposers = new address[](0);
+        address[] memory executors = new address[](1); // ← Fix: size 1
+        executors[0] = address(0); // anyone can execute
 
-timelock = new TimelockController(
-    minDelay,
-    proposers,
-    executors,
-    msg.sender // admin initially (deployer EOA)
-);
+        timelock = new TimelockController(
+            minDelay,
+            proposers,
+            executors,
+            msg.sender // admin initially (deployer EOA)
+        );
 
         // 8) Governor
         governor = new RWAGovernor(bgt, timelock);
 
         // 9) Timelock roles
-        bytes32 PROPOSER_ROLE  = timelock.PROPOSER_ROLE();
-        bytes32 EXECUTOR_ROLE  = timelock.EXECUTOR_ROLE();
+        bytes32 PROPOSER_ROLE = timelock.PROPOSER_ROLE();
+        bytes32 EXECUTOR_ROLE = timelock.EXECUTOR_ROLE();
         bytes32 CANCELLER_ROLE = timelock.CANCELLER_ROLE();
-        bytes32 ADMIN_ROLE     = timelock.DEFAULT_ADMIN_ROLE();
+        bytes32 ADMIN_ROLE = timelock.DEFAULT_ADMIN_ROLE();
 
         // Governor can propose + cancel
         timelock.grantRole(PROPOSER_ROLE, address(governor));
@@ -141,15 +161,12 @@ timelock = new TimelockController(
             timelock.getMinDelay()
         );
 
-        timelock.execute(
-            address(assetPool),
-            0,
-            data,
-            bytes32(0),
-            salt
-        );
+        timelock.execute(address(assetPool), 0, data, bytes32(0), salt);
 
-        require(assetPool.owner() == address(timelock), "AssetPool owner != timelock");
+        require(
+            assetPool.owner() == address(timelock),
+            "AssetPool owner != timelock"
+        );
 
         // 13) Clean up bootstrap proposer (optional but good practice)
         timelock.revokeRole(PROPOSER_ROLE, msg.sender);
@@ -157,6 +174,13 @@ timelock = new TimelockController(
         // 14) Remove deployer as admin (leave governance in control)
         timelock.revokeRole(ADMIN_ROLE, msg.sender);
 
-        return (chainlinkCaller, assetPool, brokerDollar, bgt, timelock, governor);
+        return (
+            chainlinkCaller,
+            assetPool,
+            brokerDollar,
+            bgt,
+            timelock,
+            governor
+        );
     }
 }

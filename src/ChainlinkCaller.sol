@@ -21,6 +21,8 @@ contract ChainlinkCaller is FunctionsClient, ConfirmedOwner {
     // Storage
     /////////////////////
 
+    event FunctionsResult(bytes32 indexed id, bytes response, bytes err);
+
     mapping(bytes32 => address) public requestToToken;
     mapping(string => address) public authorizedTokens;
 
@@ -117,6 +119,10 @@ contract ChainlinkCaller is FunctionsClient, ConfirmedOwner {
     
         uint256 tokenAmount = uint256(bytes32(response));
         bool success = err.length == 0;
+
+        if(!success) {
+            emit FunctionsResult(requestId, response, err);
+        }
  
         IAssetToken(token).onFulfill(requestId, tokenAmount, success);
     }
