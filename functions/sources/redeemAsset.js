@@ -60,7 +60,7 @@ async function main() {
     return Functions.encodeUint256(0)
   }
     
-  const filled_qty = parseFloat(responseRequest.data.filled_qty)
+  const filled_qty = responseRequest.data.filled_qty
 
   return Functions.encodeUint256(filled_qty * 1e6)
 }
