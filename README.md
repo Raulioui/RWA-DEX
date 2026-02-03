@@ -281,20 +281,7 @@ rwa-exchange/
 
 ---
 
-## Future Improvements
 
-For production deployment:
-
-- [ ] KYC/AML compliance layer
-- [ ] Legal custody infrastructure
-- [ ] Privacy (zk-proofs for accounts)
-- [ ] Multiple oracle sources
-- [ ] Cross-chain bridges
-- [ ] Advanced order types
-- [ ] MEV protection
-- [ ] Monitoring/alerting
-
----
 
 ## Disclaimer
 
@@ -309,33 +296,12 @@ Intentional simplifications:
 
 **Do not use with real funds.**
 
-Focus is on solving the **technical problem** of async settlement, not regulatory requirements.
-
----
 
 ## Related Writing
 
 📝 [Technical Deep Dive: Building Request-Based RWA Settlement](https://your-blog-link)
 
-Topics covered:
-- Sync vs. async execution mismatch
-- State machine design patterns
-- Slippage protection mechanisms
-- Governance under async risk
 
----
-
-## Contact
-
-**Raul Muela Morey**
-
-[![GitHub](https://img.shields.io/badge/GitHub-Raulioui-181717?logo=github)](https://github.com/Raulioui)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0077B5?logo=linkedin)](https://linkedin.com/in/your-profile)
-[![Email](https://img.shields.io/badge/Email-Contact-D14836?logo=gmail)](mailto:your.email@example.com)
-
-Open to blockchain development opportunities and technical discussions.
-
----
 
 ## License
 
@@ -343,21 +309,4 @@ MIT License - See [LICENSE](./LICENSE) for details
 
 ---
 
-## Acknowledgments
 
-- **Chainlink** for oracle infrastructure
-- **Alpaca** for sandbox broker API  
-- **OpenZeppelin** for secure contract libraries
-- **Foundry** for Solidity tooling
-
----
-
-<div align="center">
-
-**⭐ Star this repo if you found it interesting! ⭐**
-
-Built with ❤️ to explore async settlement design in DeFi
-
-[Report Bug](https://github.com/Raulioui/rwa-exchange/issues) • [Request Feature](https://github.com/Raulioui/rwa-exchange/issues)
-
-</div>
