@@ -4,9 +4,7 @@
 
 <div align="center">
 
-![Trading Interface Screenshot](./docs/screenshots/trading-interface.png)
-
-**[Live Demo](https://your-demo.vercel.app)** • **[Video Walkthrough](https://loom.com/your-video)** • **[Technical Deep Dive](https://your-blog-post-link)**
+**[Technical Deep Dive](https://medium.com/@raulmuelamorey/lessons-from-building-a-request-based-rwa-protocol-1486dff177b7)**
 
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.25-blue)
 ![Foundry](https://img.shields.io/badge/Foundry-tested-green)
@@ -28,11 +26,6 @@ A full-stack DeFi protocol for trading tokenized stocks (dTSLA, dAAPL, etc.) wit
 - Trade on-chain with full ERC20 compatibility
 - Participate in protocol governance via on-chain voting
 
-<div align="center">
-
-![Mint Flow Screenshot](./docs/screenshots/mint-flow.png)
-
-</div>
 
 ---
 
@@ -123,11 +116,6 @@ BrokerDollar       → Demo USDT for testing
 5. Validate slippage → mint tokens or refund
 ```
 
-<div align="center">
-
-![Architecture Diagram](./docs/screenshots/architecture.png)
-
-</div>
 
 ---
 
@@ -221,39 +209,6 @@ All failure paths (timeout, slippage, API error) trigger automatic refunds. User
 - Writing production-grade tests
 - Technical documentation
 
----
-
-## Screenshots
-
-<div align="center">
-
-### Trading Interface
-![Trading Interface](./docs/screenshots/trading.png)
-
-### Governance Dashboard
-![Governance](./docs/screenshots/governance.png)
-
-### Portfolio View
-![Portfolio](./docs/screenshots/portfolio.png)
-
-</div>
-
----
-
-## Video Demo
-
-<div align="center">
-
-[![Watch Demo](./docs/screenshots/video-thumbnail.png)](https://loom.com/your-video)
-
-**3-minute walkthrough:**
-- User registration + BrokerDollar minting
-- Purchasing dTSLA tokens
-- Request tracking (pending → fulfilled)
-- Creating governance proposals
-- Redeeming tokens
-
-</div>
 
 ---
 
@@ -297,9 +252,6 @@ Intentional simplifications:
 **Do not use with real funds.**
 
 
-## Related Writing
-
-📝 [Technical Deep Dive: Building Request-Based RWA Settlement](https://your-blog-link)
 
 
 
