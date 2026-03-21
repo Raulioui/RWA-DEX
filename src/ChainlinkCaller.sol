@@ -88,8 +88,8 @@ contract ChainlinkCaller is FunctionsClient, ConfirmedOwner {
 
         string[] memory args = new string[](3);
         args[0] = ticket;
-        args[1] = accountId;
-        args[2] = assetAmount.toString();
+        args[2] = accountId;
+        args[1] = assetAmount.toString();
         req._setArgs(args);
 
         // Send the request and store the request ID

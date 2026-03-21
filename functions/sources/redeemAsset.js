@@ -61,8 +61,9 @@ async function main() {
   }
     
   const filled_qty = responseRequest.data.filled_qty
+  const filled_avg_price = responseRequest.data.filled_avg_price
 
-  return Functions.encodeUint256(filled_qty * 1e6)
+  return Functions.encodeUint256(filled_avg_price * filled_qty * 1e6)
 }
 
 async function cancelOrder(id, account_id, auth) {
