@@ -1,108 +1,127 @@
-# 🏦 RWA DEX (Testnet Demo)
-**Asynchronous on-chain settlement for tokenized real-world assets**  
-Solidity · Foundry · Chainlink Functions · Alpaca (Sandbox) · OZ Governor/Timelock · BeaconProxy
+# RWA Exchange — Testnet Demo
 
-> ⚠️ **Portfolio / testnet demo only — NOT production-ready.**  
-> This repository focuses on the **core protocol + async settlement design**.
+Decentralized exchange for tokenized real-world assets on Arbitrum Sepolia.
 
----
+The core design problem: smart contracts execute synchronously in a single block,
+but real-world broker execution is asynchronous (seconds to minutes). This protocol
+solves the mismatch with a **request-based state machine** — mint and redeem
+operations create a persistent on-chain request, Chainlink Functions executes the
+broker call off-chain, and the callback settles the request with full slippage
+validation and refund-first error handling.
 
-## TL;DR
-Smart contracts are synchronous (single-block execution). Real-world broker execution is asynchronous (seconds/minutes).  
-This project solves the mismatch with a **request-based state machine**:
-
-✅ `mint/redeem` create a request on-chain → off-chain execution via Chainlink Functions → callback settles  
-✅ Funds are **escrowed** and **refunded on failure** (refund-first handling)  
-✅ Tokens are **upgradeable via BeaconProxy**, controlled by **governance** (Governor + Timelock)
-
-
-## Key capabilities
-- Mint tokenized assets backed by broker execution (Alpaca sandbox)
-- Redeem tokens through automated broker sales
-- Trade on-chain with full ERC20 compatibility (per-asset ERC20)
-- Govern privileged actions: listings, upgrades, emergency controls (OZ Governor + Timelock)
-
----
-
-## The problem (sync vs async)
-❌ Naive approach (doesn’t work):
-`user.mint()` → wait 30s broker API call → mint tokens  
-Transactions time out or fail. State becomes fragile.
-
-✅ This protocol:
-`user.mint()` → **create request (PENDING)** → async execution → callback → **settle** (FULFILLED / ERROR / EXPIRED)
+> Portfolio/testnet demo. Not production-ready.
 
 ---
 
 ## Architecture
+```
+src/
+├── AssetPool.sol          # Protocol coordinator, registry, user entrypoint
+├── AssetToken.sol         # Upgradeable ERC20 per asset (BeaconProxy)
+├── ChainlinkCaller.sol    # Chainlink Functions integration layer
+├── BrokerDollar.sol       # Internal USD-pegged base token
+└── Governance/
+    ├── RWAGovernor.sol    # OZ Governor
+    └── BrokerGovernanceToken.sol
 
-### Contracts
-- **AssetPool** — protocol coordinator + registry + user entrypoint  
-  - user actions: register, mint, redeem  
-  - governance-only actions: list assets / upgrades / emergency pause, etc.
-- **AssetToken** — ERC20 per asset (deployed via **BeaconProxy**)  
-  - manages request lifecycle for mint/redeem and settlement (mint/burn/refund)
-- **ChainlinkCaller** — Chainlink Functions integration layer  
-  - submits requests, receives fulfillments, forwards results to the right AssetToken
-- **BrokerDollar** — internal demo “USD-like” base token
-- **Governance** — OpenZeppelin Governor + Timelock  
-  - Timelock is the owner of privileged protocol actions
+functions/
+└── sources/
+    ├── mintAsset.js       # Chainlink Functions: buy order via Alpaca API
+    └── redeemAsset.js     # Chainlink Functions: sell order via Alpaca API
+```
 
-### Request lifecycle (state machine)
-`PENDING → FULFILLED | ERROR | EXPIRED`
+**AssetPool** is the user entrypoint and protocol registry. It owns the
+`UpgradeableBeacon` and deploys each `AssetToken` as a `BeaconProxy`, enabling
+atomic upgrades across all assets via governance. Ownership is held by the
+`TimelockController`.
 
-- **PENDING**: request created, funds escrowed
-- **FULFILLED**: callback validated + slippage checked → mint/burn finalization
-- **ERROR**: failure path → refund
-- **EXPIRED**: timeout path → refund
+**AssetToken** manages the full request lifecycle per asset. Each mint or redeem
+creates an `AssetRequest` stored in `requestIdToRequest`, with a deadline, escrow
+accounting, and explicit status transitions.
 
-### Mint flow (sequence)
-1. User calls `AssetPool.mintAsset(...)`
-2. Protocol escrows funds + creates request in `AssetToken`
-3. `ChainlinkCaller` submits Chainlink Functions request (JS in `/functions`)
-4. DON executes JS → calls Alpaca sandbox → returns filled amount/result
-5. `ChainlinkCaller` receives fulfillment → `AssetToken` settles:
-   - validate requestId + caller + params
-   - enforce slippage bounds
-   - mint to user OR refund on failure
-
----
-
-## Key technical decisions
-
-### 1) Request-based state machine
-Mint/redeem modeled as persistent requests with explicit lifecycle.
-Prevents state corruption from async failures and enables clean refunds/timeouts.
-
-### 2) Refund-first error handling
-All failure paths (API error, bad fill, timeout, unexpected callback) trigger refunds.
-Goal: user funds are **never trapped**.
-
-### 3) Slippage protection
-User submits `expectedAmount` (or bounds).
-Settlement validates actual vs expected; refunds on excessive deviation.
-
-### 4) Beacon Proxy pattern
-All AssetTokens are BeaconProxy instances pointing to a shared implementation via `UpgradeableBeacon`.
-Governance can upgrade all asset tokens atomically.
+**ChainlinkCaller** submits JavaScript source code to Chainlink's DON for execution.
+The DON calls the Alpaca sandbox API, waits for order fill, and returns the filled
+quantity. The callback routes the result to the correct `AssetToken` via
+`requestToToken`.
 
 ---
 
-## Security notes (portfolio-level)
-This is a demo, but the design includes key safety constraints:
-- Callback validation: only authorized fulfillment path should settle
-- Request binding: fulfillment must match `requestId` + expected request state
-- Replay protection: a request can be settled once
-- Escrow accounting: balances must reconcile on every settlement outcome
-- Slippage checks before mint/burn finalization
-- Timeouts → deterministic refund path
-- Governance separation: Timelock owns privileged functions
+## Request Lifecycle
+```
+PENDING → FULFILLED | ERROR | EXPIRED
+```
+
+**Mint flow:**
+1. User calls `AssetPool.mintAsset(usdAmount, ticket, expectedAssetAmount)`
+2. `BrokerDollar` is transferred to `AssetToken` (escrowed)
+3. `ChainlinkCaller.requestMint` submits the Chainlink Functions request
+4. DON executes `mintAsset.js` → places buy order on Alpaca → polls until filled
+5. `ChainlinkCaller._fulfillRequest` receives filled quantity → calls `AssetToken.onFulfill`
+6. `onFulfill` validates slippage bounds (±2%), then mints tokens or issues refund
+
+**Redeem flow** mirrors mint in reverse: asset tokens are transferred to `AssetToken`,
+a sell order is placed, and `BrokerDollar` is returned on fulfillment or the asset
+tokens are refunded on failure.
+
+**Expiry:** requests have a configurable timeout (default 1 hour, range 5 min–24 h).
+Expired requests can be cleaned up by anyone via `cleanupExpiredRequests`, which
+triggers a refund.
 
 ---
 
+## Key Design Decisions
 
-### Install
+**Refund-first error handling.** Every failure path — API error, zero fill, slippage
+violation, timeout, unexpected callback — triggers an immediate refund. User funds
+are never trapped in a pending state indefinitely.
+
+**Slippage bounds.** Users submit an `expectedAmount` alongside their request. On
+fulfillment, the protocol enforces ±2% bounds. If the actual fill deviates beyond
+this, the request is marked as error and refunded.
+
+**BeaconProxy pattern.** All `AssetToken` instances share a single implementation
+via `UpgradeableBeacon`. Governance can upgrade all asset tokens atomically with a
+single transaction, without touching individual proxy addresses.
+
+**Governance separation.** `AssetPool` is owned by `TimelockController`.
+Privileged actions — listing assets, upgrading implementations, setting timeouts,
+emergency pause — require a full governance proposal cycle: propose → vote → queue →
+execute. The Timelock enforces a mandatory delay before execution.
+
+**Rate limiting.** Users are subject to a 5-minute cooldown between requests
+(`REQUEST_COOLDOWN`) to prevent spam and simplify accounting.
+
+---
+
+## Testing
+
+Unit tests use a `MockChainlinkCaller` that exposes `fulfillRequest`,
+`fulfillMintRequest`, and `fulfillRequestWithError` helpers, allowing synchronous
+simulation of the async fulfillment flow in Foundry tests.
 ```bash
-git clone https://github.com/Raulioui/rwa-exchange
-cd rwa-exchange
+forge test -vv
+```
+
+Test coverage includes full mint/redeem lifecycle, slippage enforcement, expired
+request cleanup, beacon upgrade verification, governance proposal flows
+(propose → vote → queue → execute), and emergency pause/unpause.
+
+---
+
+## Frontend
+
+Built with Next.js 14, wagmi v2, RainbowKit, and TypeScript on Arbitrum Sepolia.
+Price data is sourced from the Alpaca market data API via a server-side proxy route.
+Asset images are stored on IPFS via Pinata.
+```bash
+cd frontend
 npm install
+npm run dev
+```
+
+---
+
+## Disclaimer
+
+Experimental and unaudited. Uses Alpaca sandbox (no real money). Do not use in
+production.
