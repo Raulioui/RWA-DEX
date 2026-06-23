@@ -13,6 +13,12 @@ validation and refund-first error handling.
 
 ---
 
+## Known Issues
+
+## H-1: Reentrancy: State change after external call
+
+Aderyn detects this reentrancy attack but this is solve using ReentrancyGuard. 
+
 ## Architecture
 ```
 src/
