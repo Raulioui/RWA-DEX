@@ -108,6 +108,12 @@ request cleanup, beacon upgrade verification, governance proposal flows
 
 ---
 
+## Known Issues
+
+## H-1: Reentrancy: State change after external call
+
+Aderyn detects this reentrancy attack but this is solve using ReentrancyGuard. 
+
 ## Frontend
 
 Built with Next.js 14, wagmi v2, RainbowKit, and TypeScript on Arbitrum Sepolia.
