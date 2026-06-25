@@ -15,9 +15,21 @@ validation and refund-first error handling.
 
 ## Known Issues
 
-## H-1: Reentrancy: State change after external call
+### H-1 (Aderyn): State change after external call 
 
-Aderyn detects this reentrancy attack but this is solve using ReentrancyGuard. 
+Aderyn flags 6 instances of state writes after an external call (CEI). Reviewed
+individually:
+
+- `registerUser`: **remediated** — state write reordered before the external
+  call (checks-effects-interactions).
+- `mintAsset`, `redeemAsset`: `nonReentrant`, and the external call targets an
+  AssetToken whose address comes from `assetInfo`, a registry populated only by
+  the `onlyOwner` function `createTokenRegistry`. The call destination cannot be
+  an attacker-controlled contract, so no untrusted reentrancy path exists.
+- `createTokenRegistry`: `onlyOwner`; calls protocol-owned `ChainlinkCaller` and
+  a freshly deployed BeaconProxy. Not attacker-reachable.
+
+Non-`registerUser` instances classified as non-exploitable rather than remediated.
 
 ## Architecture
 ```

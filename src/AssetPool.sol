@@ -258,13 +258,11 @@ contract AssetPool is ConfirmedOwner, ReentrancyGuard, Pausable {
     */
     function registerUser(string calldata accountId) external {
         if (bytes(accountId).length == 0) revert InvalidAccountId();
-        if (bytes(userToAccountId[msg.sender]).length != 0)
-            revert AlreadyRegistered();
+        if (bytes(userToAccountId[msg.sender]).length != 0) revert AlreadyRegistered();
 
-        brokerDollar.mintOnRegister(msg.sender);
+        userToAccountId[msg.sender] = accountId;  
+        brokerDollar.mintOnRegister(msg.sender);    
 
-        userToAccountId[msg.sender] = accountId;
-        
         emit UserRegistered(msg.sender, accountId);
     }
 
